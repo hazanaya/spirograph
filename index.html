@@ -295,11 +295,16 @@ input[type="range"]:active::-webkit-slider-thumb { transform: scale(1.2); box-sh
 
   <div class="panel-header">Color</div>
   <div class="panel-section">
-    <div class="slider-group">
-      <div class="slider-label"><span class="name">Hue Start</span><span class="value" id="val-hue">0&deg;</span></div>
+    <div class="mode-toggle" style="margin-bottom:12px">
+      <button class="mode-btn color-mode-btn" data-color="solid">Solid</button>
+      <button class="mode-btn color-mode-btn active" data-color="gradient">Gradient</button>
+      <button class="mode-btn color-mode-btn" data-color="rainbow">Rainbow</button>
+    </div>
+    <div class="slider-group" id="group-hue">
+      <div class="slider-label"><span class="name">Hue</span><span class="value" id="val-hue">0&deg;</span></div>
       <input type="range" id="slider-hue" min="0" max="360" value="0" step="1">
     </div>
-    <div class="slider-group">
+    <div class="slider-group" id="group-sweep">
       <div class="slider-label"><span class="name">Hue Sweep</span><span class="value" id="val-sweep">360&deg;</span></div>
       <input type="range" id="slider-sweep" min="0" max="720" value="360" step="1">
     </div>
@@ -1075,6 +1080,55 @@ const Animator = {
     }
   },
 
+  // Fast synchronous redraw for live slider feedback.
+  // Uses an adaptive step (max 4000 segments) so high-loop-count curves
+  // stay responsive while dragging. Does NOT clear the layers canvas.
+  livePreview() {
+    if (state.animId) { cancelAnimationFrame(state.animId); state.animId = null; }
+    state.isPlaying = false;
+    Renderer.clearCurve();
+    Renderer.clearGlow();
+    Renderer.clearOverlay();
+    PenTrail.clear();
+    IdleAnim.stop();
+    clearTimeout(state.idleTimer);
+
+    const R = Math.round(state.R), r = Math.round(state.r);
+    const totalT = SpiroMath.totalT(R, r);
+    state.totalT = totalT;
+    Renderer.computeScale();
+    const dt = Math.max(0.02, totalT / 4000);
+    let prev = null;
+    for (let t = 0; t < totalT; t += dt) {
+      const pt = SpiroMath.point(state.mode, state.R, state.r, state.d, t, state.is3D, state.h, state.k);
+      if (prev) {
+        const hue = state.hueStart + (t / totalT) * state.hueSweep;
+        Renderer.drawSegment(prev, pt, `hsl(${hue % 360}, 90%, 60%)`);
+      }
+      prev = pt;
+    }
+    if (prev) {
+      const finalPt = SpiroMath.point(state.mode, state.R, state.r, state.d, totalT, state.is3D, state.h, state.k);
+      Renderer.drawSegment(prev, finalPt, `hsl(${(state.hueStart + state.hueSweep) % 360}, 90%, 60%)`);
+      state.prevPoint = finalPt;
+    }
+    state.currentT = totalT;
+    state.isComplete = true;
+    if (state.showGlow) {
+      const ctx = Renderer.glowCtx;
+      ctx.setTransform(Renderer.dpr, 0, 0, Renderer.dpr, 0, 0);
+      ctx.filter = 'blur(8px)';
+      ctx.globalCompositeOperation = 'lighter';
+      ctx.globalAlpha = 0.35;
+      ctx.drawImage(Renderer.curveCanvas, 0, 0, Renderer.width, Renderer.height);
+      ctx.filter = 'none';
+      ctx.globalCompositeOperation = 'source-over';
+      ctx.globalAlpha = 1;
+    }
+    this.updatePlayButton();
+    MathPanel.update();
+  },
+
   drawInstant() {
     this.reset();
     state.totalT = SpiroMath.totalT(Math.round(state.R), Math.round(state.r));
@@ -1488,19 +1542,22 @@ function wireCanvasTouch() {
 // UI WIRING
 // ===================================================================
 function wireControls() {
+  // isShapeParam — changes curve geometry: instant preview while dragging, animated restart on release
+  // isColorParam — changes color only: live update with no restart at all
+  // neither       — speed/width: already applied per-frame, no redraw needed
   const paramSliders = [
-    { id: 'slider-R', val: 'val-R', key: 'R', fmt: v => v, isParam: true },
-    { id: 'slider-r', val: 'val-r', key: 'r', fmt: v => v, isParam: true },
-    { id: 'slider-d', val: 'val-d', key: 'd', fmt: v => v, isParam: true },
-    { id: 'slider-h', val: 'val-h', key: 'h', fmt: v => v, isParam: true },
-    { id: 'slider-k', val: 'val-k', key: 'k', fmt: v => v, isParam: true },
+    { id: 'slider-R', val: 'val-R', key: 'R', fmt: v => v, isShapeParam: true },
+    { id: 'slider-r', val: 'val-r', key: 'r', fmt: v => v, isShapeParam: true },
+    { id: 'slider-d', val: 'val-d', key: 'd', fmt: v => v, isShapeParam: true },
+    { id: 'slider-h', val: 'val-h', key: 'h', fmt: v => v, isShapeParam: true },
+    { id: 'slider-k', val: 'val-k', key: 'k', fmt: v => v, isShapeParam: true },
     { id: 'slider-speed', val: 'val-speed', key: 'speed', fmt: v => v },
     { id: 'slider-width', val: 'val-width', key: 'lineWidth', fmt: v => v },
-    { id: 'slider-hue', val: 'val-hue', key: 'hueStart', fmt: v => v + '\u00b0', isParam: true },
-    { id: 'slider-sweep', val: 'val-sweep', key: 'hueSweep', fmt: v => v + '\u00b0', isParam: true },
+    { id: 'slider-hue', val: 'val-hue', key: 'hueStart', fmt: v => v + '\u00b0', isColorParam: true },
+    { id: 'slider-sweep', val: 'val-sweep', key: 'hueSweep', fmt: v => v + '\u00b0', isColorParam: true },
   ];
 
-  paramSliders.forEach(({ id, val, key, fmt, isParam }) => {
+  paramSliders.forEach(({ id, val, key, fmt, isShapeParam, isColorParam }) => {
     const slider = document.getElementById(id);
     const display = document.getElementById(val);
     slider.addEventListener('input', () => {
@@ -1509,8 +1566,18 @@ function wireControls() {
       display.textContent = fmt(v);
       IdleAnim.stop();
       clearTimeout(state.idleTimer);
-      if (isParam) Animator.softReset();
+      if (isShapeParam && !state.isEvolving) {
+        Animator.livePreview();
+      } else if (isColorParam && (state.isComplete || !state.isPlaying)) {
+        Animator.livePreview();
+      }
     });
+    // Shape params: on pointer release, restart animated drawing
+    if (isShapeParam) {
+      slider.addEventListener('change', () => {
+        if (!state.isEvolving) Animator.restart();
+      });
+    }
   });
 
   // Curve mode toggle (hypo/epi only — scoped to .curve-mode-btn to avoid touching 2D/3D buttons)
@@ -1531,6 +1598,36 @@ function wireControls() {
       state.is3D = btn.dataset.dim === '3d';
       document.getElementById('controls-panel').classList.toggle('show-3d', state.is3D);
       Animator.restart();
+    });
+  });
+
+  // Color mode toggle (Solid / Gradient / Rainbow)
+  document.querySelectorAll('.color-mode-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.color-mode-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      const colorMode = btn.dataset.color;
+      const hueGroup = document.getElementById('group-hue');
+      const sweepGroup = document.getElementById('group-sweep');
+      if (colorMode === 'rainbow') {
+        state.hueStart = 0; state.hueSweep = 360;
+        document.getElementById('slider-hue').value = 0;
+        document.getElementById('val-hue').textContent = '0\u00b0';
+        document.getElementById('slider-sweep').value = 360;
+        document.getElementById('val-sweep').textContent = '360\u00b0';
+        hueGroup.style.display = 'none';
+        sweepGroup.style.display = 'none';
+      } else if (colorMode === 'solid') {
+        state.hueSweep = 0;
+        document.getElementById('slider-sweep').value = 0;
+        document.getElementById('val-sweep').textContent = '0\u00b0';
+        hueGroup.style.display = '';
+        sweepGroup.style.display = 'none';
+      } else {
+        hueGroup.style.display = '';
+        sweepGroup.style.display = '';
+      }
+      if (state.isComplete || !state.isPlaying) Animator.livePreview();
     });
   });
 
