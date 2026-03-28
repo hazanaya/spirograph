@@ -469,7 +469,8 @@ const state = {
   isEvolving: false, evolveTargets: null,
   isShuffling: false,
   idleTimer: null, idleAngle: 0, idleHue: 0, isIdle: false,
-  canvasDragging: false
+  canvasDragging: false,
+  onionSkin: false, onionCaptured: false
 };
 
 // ===================================================================
@@ -628,6 +629,14 @@ const Renderer = {
     ctx.arc(sc.x, sc.y, 3, 0, Math.PI * 2);
     ctx.fillStyle = 'rgba(244, 114, 182, 0.5)';
     ctx.fill();
+  },
+
+  ghostLayer(alpha = 0.15) {
+    const ctx = this.layersCtx;
+    ctx.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);
+    ctx.globalAlpha = alpha;
+    ctx.drawImage(this.curveCanvas, 0, 0, this.width, this.height);
+    ctx.globalAlpha = 1;
   },
 
   stampLayer() {
@@ -974,7 +983,7 @@ const Animator = {
     if (!state.isPlaying) this.start();
   },
 
-  restart() { this.reset(); this.start(); },
+  restart() { state.onionCaptured = false; this.reset(); this.start(); },
 
   loop() {
     if (!state.isPlaying) return;
@@ -1088,6 +1097,12 @@ const Animator = {
   // Uses an adaptive step (max 4000 segments) so high-loop-count curves
   // stay responsive while dragging. Does NOT clear the layers canvas.
   livePreview() {
+    // On the first call of each drag session: capture an onion ghost of the
+    // current (complete) curve before it gets replaced by the new preview.
+    if (state.onionSkin && !state.onionCaptured && state.isComplete) {
+      state.onionCaptured = true;
+      Renderer.ghostLayer(0.18);
+    }
     if (state.animId) { cancelAnimationFrame(state.animId); state.animId = null; }
     state.isPlaying = false;
     Renderer.clearCurve();
@@ -1688,6 +1703,7 @@ function wireControls() {
     Animator.reset();
     Renderer.clearLayers();
     state.layerCount = 0;
+    state.onionCaptured = false;
     updateLayerBadge();
   });
 
@@ -1717,6 +1733,12 @@ function wireControls() {
   });
 
   document.getElementById('btn-svg').addEventListener('click', exportSVG);
+
+  document.getElementById('btn-onion').addEventListener('click', () => {
+    state.onionSkin = !state.onionSkin;
+    state.onionCaptured = false;
+    document.getElementById('btn-onion').classList.toggle('active', state.onionSkin);
+  });
 
   document.getElementById('btn-sound').addEventListener('click', () => Sound.toggle());
 
