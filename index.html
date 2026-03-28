@@ -324,6 +324,10 @@ input[type="range"]:active::-webkit-slider-thumb { transform: scale(1.2); box-sh
       <button class="action-btn" id="btn-shuffle"><span class="btn-icon">&#9858;</span><span class="btn-label">Shuffle</span></button>
       <button class="action-btn" id="btn-evolve"><span class="btn-icon">&#8734;</span><span class="btn-label">Evolve</span></button>
     </div>
+    <div class="action-row">
+      <button class="action-btn" id="btn-svg"><span class="btn-icon">&#9674;</span><span class="btn-label">SVG</span></button>
+      <button class="action-btn" id="btn-onion"><span class="btn-icon">&#9678;</span><span class="btn-label">Onion</span></button>
+    </div>
   </div>
 
   <div class="panel-header">Presets</div>
@@ -1539,6 +1543,53 @@ function wireCanvasTouch() {
 }
 
 // ===================================================================
+// SVG EXPORT
+// ===================================================================
+function exportSVG() {
+  const W = Renderer.width, H = Renderer.height;
+  const totalT = SpiroMath.totalT(Math.round(state.R), Math.round(state.r));
+  // Adaptive step: smooth but capped at 2000 segments for file size
+  const dt = Math.max(0.02, totalT / 2000);
+
+  // Group path data by quantized hue so we emit one <path> per color band
+  // rather than one element per segment — much smaller SVG output.
+  const colorPaths = {};
+  let prev = null;
+
+  for (let t = 0; t < totalT; t += dt) {
+    const pt = SpiroMath.point(state.mode, state.R, state.r, state.d, t, state.is3D, state.h, state.k);
+    const sp = Renderer.toScreen(pt);
+    if (prev) {
+      const rawHue = state.hueStart + (t / totalT) * state.hueSweep;
+      const hue = ((Math.round(rawHue) % 360) + 360) % 360;
+      if (!colorPaths[hue]) colorPaths[hue] = '';
+      colorPaths[hue] += `M${prev.x.toFixed(1)},${prev.y.toFixed(1)}L${sp.x.toFixed(1)},${sp.y.toFixed(1)} `;
+    }
+    prev = { x: sp.x, y: sp.y };
+  }
+
+  const lw = state.lineWidth.toFixed(1);
+  const pathEls = Object.entries(colorPaths)
+    .map(([hue, d]) =>
+      `  <path d="${d.trim()}" stroke="hsl(${hue},90%,60%)" stroke-width="${lw}" stroke-linecap="round" fill="none"/>`)
+    .join('\n');
+
+  const svg = `<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}">
+  <rect width="${W}" height="${H}" fill="#07070d"/>
+${pathEls}
+</svg>`;
+
+  const blob = new Blob([svg], { type: 'image/svg+xml' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.download = `spirograph-${Date.now()}.svg`;
+  a.href = url;
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+// ===================================================================
 // UI WIRING
 // ===================================================================
 function wireControls() {
@@ -1664,6 +1715,8 @@ function wireControls() {
     link.href = c.toDataURL('image/png');
     link.click();
   });
+
+  document.getElementById('btn-svg').addEventListener('click', exportSVG);
 
   document.getElementById('btn-sound').addEventListener('click', () => Sound.toggle());
 
