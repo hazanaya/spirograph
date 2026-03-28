@@ -1,0 +1,1661 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Spirograph">
+<title>Spirograph</title>
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --bg: #07070d;
+  --panel-bg: rgba(15, 15, 28, 0.88);
+  --panel-border: rgba(255, 255, 255, 0.08);
+  --text: #d8d8e8;
+  --text-dim: #8888a0;
+  --accent: #6366f1;
+  --color-R: #22d3ee;
+  --color-r: #f472b6;
+  --color-d: #fbbf24;
+  --color-t: #a78bfa;
+  --color-h: #34d399;
+  --radius: 14px;
+  --panel-width: 280px;
+  --math-panel-width: 340px;
+}
+
+html, body {
+  width: 100%; height: 100%;
+  overflow: hidden;
+  background: var(--bg);
+  color: var(--text);
+  font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', system-ui, sans-serif;
+  font-size: 14px;
+  -webkit-user-select: none; user-select: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+#canvas-container {
+  position: fixed; inset: 0; z-index: 0;
+  transition: filter 0.5s ease;
+}
+
+canvas {
+  position: absolute; top: 0; left: 0;
+  width: 100%; height: 100%;
+  touch-action: none;
+}
+
+#layers-canvas { z-index: 0; }
+#glow-canvas { z-index: 1; }
+#curve-canvas { z-index: 2; }
+#overlay-canvas { z-index: 3; }
+
+/* ===== PANELS ===== */
+.panel {
+  position: fixed; top: 0; bottom: 0; z-index: 10;
+  width: var(--panel-width);
+  background: var(--panel-bg);
+  backdrop-filter: blur(30px) saturate(1.4);
+  -webkit-backdrop-filter: blur(30px) saturate(1.4);
+  border: 1px solid var(--panel-border);
+  transition: transform 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+  overflow-y: auto; overflow-x: hidden;
+  -webkit-overflow-scrolling: touch;
+  padding: env(safe-area-inset-top) 0 env(safe-area-inset-bottom) 0;
+}
+.panel::-webkit-scrollbar { width: 0; }
+
+#controls-panel {
+  left: 0; border-left: none;
+  border-radius: 0 var(--radius) var(--radius) 0;
+  padding-left: env(safe-area-inset-left);
+}
+#controls-panel.collapsed { transform: translateX(calc(-100% - 2px)); }
+
+#math-panel {
+  right: 0; width: var(--math-panel-width);
+  border-right: none;
+  border-radius: var(--radius) 0 0 var(--radius);
+  padding-right: env(safe-area-inset-right);
+}
+#math-panel.collapsed { transform: translateX(calc(100% + 2px)); }
+
+.panel-toggle {
+  position: fixed; z-index: 11;
+  width: 44px; height: 44px; border-radius: 50%;
+  background: var(--panel-bg);
+  backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px);
+  border: 1px solid var(--panel-border);
+  color: var(--text); font-size: 20px;
+  display: flex; align-items: center; justify-content: center;
+  cursor: pointer; transition: all 0.25s ease;
+  -webkit-tap-highlight-color: transparent;
+}
+.panel-toggle:active { transform: scale(0.9); }
+
+#controls-toggle { top: 16px; left: 16px; }
+#controls-panel:not(.collapsed) ~ #controls-toggle { left: calc(var(--panel-width) + 16px); }
+#math-toggle { top: 16px; right: 16px; }
+#math-panel:not(.collapsed) ~ #math-toggle { right: calc(var(--math-panel-width) + 16px); }
+
+.panel-header {
+  padding: 20px 20px 8px; font-size: 11px; font-weight: 700;
+  letter-spacing: 1.5px; text-transform: uppercase; color: var(--text-dim);
+}
+.panel-section { padding: 12px 20px; }
+.panel-section + .panel-section { border-top: 1px solid rgba(255,255,255,0.05); }
+
+/* ===== SLIDERS ===== */
+.slider-group { margin-bottom: 16px; }
+.slider-group:last-child { margin-bottom: 0; }
+.slider-label { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 6px; }
+.slider-label .name { font-weight: 600; font-size: 13px; }
+.slider-label .value { font-family: 'SF Mono', ui-monospace, monospace; font-size: 13px; min-width: 36px; text-align: right; }
+
+.param-R .name, .param-R .value { color: var(--color-R); }
+.param-r .name, .param-r .value { color: var(--color-r); }
+.param-d .name, .param-d .value { color: var(--color-d); }
+.param-h .name, .param-h .value { color: var(--color-h); }
+
+input[type="range"] {
+  -webkit-appearance: none; appearance: none;
+  width: 100%; height: 6px; border-radius: 3px;
+  background: rgba(255,255,255,0.08); outline: none; cursor: pointer;
+}
+input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none; appearance: none;
+  width: 26px; height: 26px; border-radius: 50%;
+  background: var(--accent); border: 2px solid rgba(255,255,255,0.2);
+  box-shadow: 0 0 10px rgba(99, 102, 241, 0.4);
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+input[type="range"]:active::-webkit-slider-thumb { transform: scale(1.2); box-shadow: 0 0 16px rgba(99, 102, 241, 0.7); }
+
+.param-R input::-webkit-slider-thumb { background: var(--color-R); box-shadow: 0 0 10px rgba(34, 211, 238, 0.4); }
+.param-r input::-webkit-slider-thumb { background: var(--color-r); box-shadow: 0 0 10px rgba(244, 114, 182, 0.4); }
+.param-d input::-webkit-slider-thumb { background: var(--color-d); box-shadow: 0 0 10px rgba(251, 191, 36, 0.4); }
+.param-h input::-webkit-slider-thumb { background: var(--color-h); box-shadow: 0 0 10px rgba(52, 211, 153, 0.4); }
+
+/* ===== MODE TOGGLE ===== */
+.mode-toggle { display: flex; background: rgba(255,255,255,0.06); border-radius: 10px; padding: 3px; gap: 3px; }
+.mode-btn {
+  flex: 1; padding: 10px 8px; border: none; border-radius: 8px;
+  background: transparent; color: var(--text-dim); font-size: 12px; font-weight: 600;
+  cursor: pointer; transition: all 0.2s ease; -webkit-tap-highlight-color: transparent;
+}
+.mode-btn.active { background: var(--accent); color: white; box-shadow: 0 2px 8px rgba(99, 102, 241, 0.4); }
+
+/* ===== ACTION BUTTONS ===== */
+.action-row { display: flex; gap: 6px; flex-wrap: wrap; }
+.action-row + .action-row { margin-top: 6px; }
+.action-btn {
+  flex: 1; min-width: 44px; padding: 8px 4px;
+  border: 1px solid rgba(255,255,255,0.1); border-radius: 10px;
+  background: rgba(255,255,255,0.04); color: var(--text);
+  font-size: 16px; cursor: pointer; transition: all 0.15s ease;
+  display: flex; flex-direction: column; align-items: center; gap: 2px;
+  -webkit-tap-highlight-color: transparent;
+}
+.action-btn .btn-label { font-size: 8px; font-weight: 600; letter-spacing: 0.3px; text-transform: uppercase; color: var(--text-dim); }
+.action-btn:active { background: rgba(255,255,255,0.1); transform: scale(0.95); }
+.action-btn.active { background: rgba(99, 102, 241, 0.2); border-color: var(--accent); color: var(--accent); }
+
+/* ===== PRESET GALLERY ===== */
+.preset-gallery { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.preset-item {
+  aspect-ratio: 1; border-radius: 10px;
+  border: 1px solid rgba(255,255,255,0.08); background: rgba(0,0,0,0.3);
+  cursor: pointer; overflow: hidden; position: relative; transition: all 0.2s ease;
+}
+.preset-item:active { transform: scale(0.93); border-color: var(--accent); }
+.preset-item canvas { width: 100%; height: 100%; position: absolute; inset: 0; }
+.preset-item .preset-name {
+  position: absolute; bottom: 0; left: 0; right: 0;
+  padding: 3px 5px; font-size: 8px; font-weight: 600;
+  text-align: center; background: rgba(0,0,0,0.6); color: var(--text-dim);
+}
+
+/* ===== MATH PANEL ===== */
+#math-panel .panel-section { padding: 16px 22px; }
+.equation-block {
+  font-family: 'SF Mono', ui-monospace, monospace; font-size: 13px; line-height: 2;
+  padding: 12px 14px; background: rgba(0,0,0,0.3); border-radius: 10px;
+  border: 1px solid rgba(255,255,255,0.05); overflow-x: auto;
+}
+.eq-func { color: #e0e0e8; } .eq-R { color: var(--color-R); font-weight: 700; }
+.eq-r { color: var(--color-r); font-weight: 700; } .eq-d { color: var(--color-d); font-weight: 700; }
+.eq-t { color: var(--color-t); } .eq-op { color: var(--text-dim); }
+.eq-h { color: var(--color-h); font-weight: 700; }
+
+.math-row { display: flex; justify-content: space-between; align-items: baseline; padding: 8px 0; border-bottom: 1px solid rgba(255,255,255,0.04); }
+.math-row:last-child { border-bottom: none; }
+.math-label { font-size: 12px; color: var(--text-dim); font-weight: 500; }
+.math-value { font-family: 'SF Mono', ui-monospace, monospace; font-size: 14px; font-weight: 600; }
+
+.classification {
+  font-size: 14px; line-height: 1.5; color: var(--text); padding: 10px 14px;
+  background: rgba(99, 102, 241, 0.08); border-radius: 10px;
+  border: 1px solid rgba(99, 102, 241, 0.15); text-align: center;
+}
+.classification .highlight { color: var(--accent); font-weight: 700; }
+
+.progress-bar-container { width: 100%; height: 4px; background: rgba(255,255,255,0.08); border-radius: 2px; margin-top: 8px; overflow: hidden; }
+.progress-bar { height: 100%; background: linear-gradient(90deg, var(--accent), var(--color-t)); border-radius: 2px; transition: width 0.1s linear; }
+
+/* ===== FLASH ===== */
+#flash-overlay {
+  position: fixed; inset: 0; z-index: 25;
+  background: white; opacity: 0; pointer-events: none;
+  transition: opacity 0.05s ease;
+}
+#flash-overlay.flash { opacity: 0.15; }
+
+/* ===== 3D SLIDERS (hidden by default) ===== */
+.slider-3d { display: none; }
+.show-3d .slider-3d { display: block; }
+
+/* ===== LAYER BADGE ===== */
+.layer-badge {
+  position: absolute; top: -4px; right: -4px;
+  width: 16px; height: 16px; border-radius: 50%;
+  background: var(--accent); color: white;
+  font-size: 9px; font-weight: 700;
+  display: flex; align-items: center; justify-content: center;
+  display: none;
+}
+.layer-badge.show { display: flex; }
+
+@media (max-width: 768px) { :root { --panel-width: 260px; --math-panel-width: 300px; } }
+@media (max-width: 600px) { :root { --panel-width: 240px; --math-panel-width: 280px; } }
+</style>
+</head>
+<body>
+
+<div id="canvas-container">
+  <canvas id="layers-canvas"></canvas>
+  <canvas id="glow-canvas"></canvas>
+  <canvas id="curve-canvas"></canvas>
+  <canvas id="overlay-canvas"></canvas>
+</div>
+
+<div id="flash-overlay"></div>
+
+<div id="controls-panel" class="panel">
+  <div class="panel-header">Parameters</div>
+  <div class="panel-section">
+    <div class="slider-group param-R">
+      <div class="slider-label"><span class="name">R &middot; Fixed Ring</span><span class="value" id="val-R">100</span></div>
+      <input type="range" id="slider-R" min="20" max="200" value="100" step="1">
+    </div>
+    <div class="slider-group param-r">
+      <div class="slider-label"><span class="name">r &middot; Rolling Wheel</span><span class="value" id="val-r">63</span></div>
+      <input type="range" id="slider-r" min="3" max="195" value="63" step="1">
+    </div>
+    <div class="slider-group param-d">
+      <div class="slider-label"><span class="name">d &middot; Pen Distance</span><span class="value" id="val-d">50</span></div>
+      <input type="range" id="slider-d" min="1" max="195" value="50" step="1">
+    </div>
+    <div class="slider-group param-h slider-3d">
+      <div class="slider-label"><span class="name">h &middot; 3D Height</span><span class="value" id="val-h">40</span></div>
+      <input type="range" id="slider-h" min="0" max="120" value="40" step="1">
+    </div>
+    <div class="slider-group slider-3d">
+      <div class="slider-label"><span class="name">k &middot; Z Frequency</span><span class="value" id="val-k">3</span></div>
+      <input type="range" id="slider-k" min="1" max="20" value="3" step="1">
+    </div>
+  </div>
+
+  <div class="panel-header">Mode</div>
+  <div class="panel-section">
+    <div class="mode-toggle">
+      <button class="mode-btn active" data-mode="hypo">Hypotrochoid</button>
+      <button class="mode-btn" data-mode="epi">Epitrochoid</button>
+    </div>
+    <div class="mode-toggle" style="margin-top:8px">
+      <button class="mode-btn active dim-btn" data-dim="2d">2D</button>
+      <button class="mode-btn dim-btn" data-dim="3d">3D</button>
+    </div>
+  </div>
+
+  <div class="panel-header">Drawing</div>
+  <div class="panel-section">
+    <div class="slider-group">
+      <div class="slider-label"><span class="name">Speed</span><span class="value" id="val-speed">3</span></div>
+      <input type="range" id="slider-speed" min="1" max="10" value="3" step="1">
+    </div>
+    <div class="slider-group">
+      <div class="slider-label"><span class="name">Line Width</span><span class="value" id="val-width">1.5</span></div>
+      <input type="range" id="slider-width" min="0.5" max="5" value="1.5" step="0.5">
+    </div>
+  </div>
+
+  <div class="panel-header">Color</div>
+  <div class="panel-section">
+    <div class="slider-group">
+      <div class="slider-label"><span class="name">Hue Start</span><span class="value" id="val-hue">0&deg;</span></div>
+      <input type="range" id="slider-hue" min="0" max="360" value="0" step="1">
+    </div>
+    <div class="slider-group">
+      <div class="slider-label"><span class="name">Hue Sweep</span><span class="value" id="val-sweep">360&deg;</span></div>
+      <input type="range" id="slider-sweep" min="0" max="720" value="360" step="1">
+    </div>
+  </div>
+
+  <div class="panel-header">Actions</div>
+  <div class="panel-section">
+    <div class="action-row">
+      <button class="action-btn" id="btn-play"><span class="btn-icon">&#9654;</span><span class="btn-label">Play</span></button>
+      <button class="action-btn" id="btn-clear"><span class="btn-icon">&#10005;</span><span class="btn-label">Clear</span></button>
+      <button class="action-btn active" id="btn-fx"><span class="btn-icon">&#10024;</span><span class="btn-label">FX</span></button>
+      <button class="action-btn" id="btn-save"><span class="btn-icon">&#8681;</span><span class="btn-label">Save</span></button>
+    </div>
+    <div class="action-row">
+      <button class="action-btn" id="btn-sound"><span class="btn-icon">&#9835;</span><span class="btn-label">Sound</span></button>
+      <button class="action-btn" id="btn-layer" style="position:relative"><span class="btn-icon">&#9776;</span><span class="btn-label">Layer+</span><span class="layer-badge" id="layer-badge">0</span></button>
+      <button class="action-btn" id="btn-shuffle"><span class="btn-icon">&#9858;</span><span class="btn-label">Shuffle</span></button>
+      <button class="action-btn" id="btn-evolve"><span class="btn-icon">&#8734;</span><span class="btn-label">Evolve</span></button>
+    </div>
+  </div>
+
+  <div class="panel-header">Presets</div>
+  <div class="panel-section">
+    <div class="preset-gallery" id="preset-gallery"></div>
+  </div>
+</div>
+
+<div id="math-panel" class="panel collapsed">
+  <div class="panel-header">Pattern Analysis</div>
+  <div class="panel-section"><div id="classification" class="classification"></div></div>
+  <div class="panel-header">Equations</div>
+  <div class="panel-section"><div id="equation-block" class="equation-block"></div></div>
+  <div class="panel-header">Properties</div>
+  <div class="panel-section"><div id="math-properties"></div></div>
+  <div class="panel-header">Drawing Progress</div>
+  <div class="panel-section">
+    <div id="progress-info"></div>
+    <div class="progress-bar-container"><div class="progress-bar" id="progress-bar"></div></div>
+  </div>
+  <div class="panel-header">About</div>
+  <div class="panel-section">
+    <p style="font-size: 12px; line-height: 1.6; color: var(--text-dim);">
+      A <strong>spirograph</strong> traces curves called <em>trochoids</em> by rolling a wheel
+      inside or outside a fixed ring. The pen draws the pattern. In <strong>3D mode</strong>,
+      a sinusoidal z-component lifts the curve through space. Drag the canvas to orbit.
+      The <strong>ratio R/r</strong> determines the symmetry.
+    </p>
+  </div>
+</div>
+
+<button class="panel-toggle" id="controls-toggle">&#9776;</button>
+<button class="panel-toggle" id="math-toggle">&fnof;</button>
+
+<script>
+// ===================================================================
+// SPIROGRAPH MATH
+// ===================================================================
+const SpiroMath = {
+  gcd(a, b) {
+    a = Math.round(Math.abs(a)); b = Math.round(Math.abs(b));
+    while (b) { [a, b] = [b, a % b]; }
+    return a;
+  },
+  loopCount(R, r) { const g = this.gcd(R, r); return g === 0 ? 1 : r / g; },
+  totalT(R, r) { return 2 * Math.PI * this.loopCount(R, r); },
+
+  hypoPoint(R, r, d, t) {
+    const diff = R - r, ratio = diff / r;
+    return { x: diff * Math.cos(t) + d * Math.cos(ratio * t), y: diff * Math.sin(t) - d * Math.sin(ratio * t), z: 0 };
+  },
+  epiPoint(R, r, d, t) {
+    const sum = R + r, ratio = sum / r;
+    return { x: sum * Math.cos(t) - d * Math.cos(ratio * t), y: sum * Math.sin(t) - d * Math.sin(ratio * t), z: 0 };
+  },
+
+  hypoPoint3D(R, r, d, h, k, t) {
+    const p = this.hypoPoint(R, r, d, t);
+    p.z = h * Math.sin(k * t);
+    return p;
+  },
+  epiPoint3D(R, r, d, h, k, t) {
+    const p = this.epiPoint(R, r, d, t);
+    p.z = h * Math.sin(k * t);
+    return p;
+  },
+
+  point(mode, R, r, d, t, is3D, h, k) {
+    if (is3D) return mode === 'hypo' ? this.hypoPoint3D(R, r, d, h, k, t) : this.epiPoint3D(R, r, d, h, k, t);
+    return mode === 'hypo' ? this.hypoPoint(R, r, d, t) : this.epiPoint(R, r, d, t);
+  },
+
+  innerCenter(mode, R, r, t) {
+    if (mode === 'hypo') { const d = R - r; return { x: d * Math.cos(t), y: d * Math.sin(t), z: 0 }; }
+    const s = R + r; return { x: s * Math.cos(t), y: s * Math.sin(t), z: 0 };
+  },
+
+  maxExtent(mode, R, r, d) { return mode === 'hypo' ? Math.abs(R - r) + d : R + r + d; },
+  simplifyFraction(a, b) { const g = this.gcd(a, b); return [a / g, b / g]; }
+};
+
+// ===================================================================
+// CAMERA (3D projection + orbit)
+// ===================================================================
+const Camera = {
+  yaw: 0.3, pitch: 0.4,
+  targetYaw: 0.3, targetPitch: 0.4,
+  velYaw: 0, velPitch: 0,
+  camDist: 500, fov: 400,
+  autoRotate: true,
+  friction: 0.96,
+
+  rotatePoint(p) {
+    // Yaw (around Y axis)
+    let x = p.x * Math.cos(this.yaw) - p.z * Math.sin(this.yaw);
+    let z = p.x * Math.sin(this.yaw) + p.z * Math.cos(this.yaw);
+    // Pitch (around X axis)
+    let y = p.y * Math.cos(this.pitch) - z * Math.sin(this.pitch);
+    z = p.y * Math.sin(this.pitch) + z * Math.cos(this.pitch);
+    return { x, y, z };
+  },
+
+  project(p, scale, centerX, centerY, offsetX, offsetY) {
+    const r = this.rotatePoint({ x: p.x * scale, y: p.y * scale, z: p.z * scale });
+    const perspective = this.fov / (r.z + this.camDist);
+    return {
+      x: centerX + offsetX + r.x * perspective,
+      y: centerY + offsetY - r.y * perspective,
+      depth: r.z
+    };
+  },
+
+  update() {
+    this.velYaw *= this.friction;
+    this.velPitch *= this.friction;
+    this.yaw += this.velYaw;
+    this.pitch += this.velPitch;
+    if (this.autoRotate && Math.abs(this.velYaw) < 0.0001 && Math.abs(this.velPitch) < 0.0001) {
+      this.yaw += 0.003;
+    }
+  }
+};
+
+// ===================================================================
+// STATE
+// ===================================================================
+const state = {
+  R: 100, r: 63, d: 50,
+  mode: 'hypo', is3D: false,
+  h: 40, k: 3,
+  speed: 3, lineWidth: 1.5,
+  hueStart: 0, hueSweep: 360,
+  showFX: true, showGlow: true,
+  soundOn: false,
+  isPlaying: false, currentT: 0, totalT: 0,
+  scale: 1, offsetX: 0, offsetY: 0,
+  prevPoint: null, animId: null, isComplete: false,
+  layerCount: 0,
+  isEvolving: false, evolveTargets: null,
+  isShuffling: false,
+  idleTimer: null, idleAngle: 0, idleHue: 0, isIdle: false,
+  canvasDragging: false
+};
+
+// ===================================================================
+// RENDERER
+// ===================================================================
+const Renderer = {
+  curveCanvas: null, overlayCanvas: null, glowCanvas: null, layersCanvas: null,
+  curveCtx: null, overlayCtx: null, glowCtx: null, layersCtx: null,
+  dpr: 1, width: 0, height: 0, centerX: 0, centerY: 0,
+  glowFrame: 0,
+
+  init() {
+    this.curveCanvas = document.getElementById('curve-canvas');
+    this.overlayCanvas = document.getElementById('overlay-canvas');
+    this.glowCanvas = document.getElementById('glow-canvas');
+    this.layersCanvas = document.getElementById('layers-canvas');
+    this.curveCtx = this.curveCanvas.getContext('2d');
+    this.overlayCtx = this.overlayCanvas.getContext('2d');
+    this.glowCtx = this.glowCanvas.getContext('2d');
+    this.layersCtx = this.layersCanvas.getContext('2d');
+    this.resize();
+  },
+
+  resize() {
+    this.dpr = window.devicePixelRatio || 1;
+    this.width = window.innerWidth;
+    this.height = window.innerHeight;
+    for (const c of [this.curveCanvas, this.overlayCanvas, this.glowCanvas, this.layersCanvas]) {
+      c.width = this.width * this.dpr;
+      c.height = this.height * this.dpr;
+      c.style.width = this.width + 'px';
+      c.style.height = this.height + 'px';
+      c.getContext('2d').scale(this.dpr, this.dpr);
+    }
+    this.centerX = this.width / 2;
+    this.centerY = this.height / 2;
+    this.computeScale();
+  },
+
+  computeScale() {
+    const maxExt = SpiroMath.maxExtent(state.mode, state.R, state.r, state.d);
+    const extraZ = state.is3D ? state.h * 0.3 : 0;
+    const minDim = Math.min(this.width, this.height);
+    state.scale = (minDim * 0.35) / ((maxExt + extraZ) || 1);
+  },
+
+  toScreen(p) {
+    if (state.is3D) {
+      return Camera.project(p, state.scale, this.centerX, this.centerY, state.offsetX, state.offsetY);
+    }
+    return {
+      x: this.centerX + state.offsetX + p.x * state.scale,
+      y: this.centerY + state.offsetY - p.y * state.scale,
+      depth: 0
+    };
+  },
+
+  clearCanvas(ctx) {
+    ctx.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);
+    ctx.clearRect(0, 0, this.width, this.height);
+  },
+
+  clearCurve() { this.clearCanvas(this.curveCtx); },
+  clearOverlay() { this.clearCanvas(this.overlayCtx); },
+  clearGlow() { this.clearCanvas(this.glowCtx); },
+  clearLayers() { this.clearCanvas(this.layersCtx); },
+
+  fadeCurve(alpha) {
+    const ctx = this.curveCtx;
+    ctx.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);
+    ctx.fillStyle = `rgba(7, 7, 13, ${alpha})`;
+    ctx.fillRect(0, 0, this.width, this.height);
+  },
+
+  drawSegment(from, to, color, depthFrom, depthTo) {
+    const ctx = this.curveCtx;
+    const a = this.toScreen(from);
+    const b = this.toScreen(to);
+
+    let lw = state.lineWidth;
+    let alpha = 1;
+    if (state.is3D) {
+      const avgDepth = ((a.depth || 0) + (b.depth || 0)) / 2;
+      const norm = (avgDepth + 200) / 400;
+      alpha = 0.3 + 0.7 * Math.max(0, Math.min(1, 1 - norm * 0.5));
+      lw = state.lineWidth * (0.5 + 1.5 * Math.max(0, Math.min(1, 1 - norm * 0.3)));
+    }
+
+    ctx.beginPath();
+    ctx.moveTo(a.x, a.y);
+    ctx.lineTo(b.x, b.y);
+    ctx.strokeStyle = color;
+    ctx.globalAlpha = alpha;
+    ctx.lineWidth = lw;
+    ctx.lineCap = 'round';
+    ctx.stroke();
+    ctx.globalAlpha = 1;
+  },
+
+  updateGlow() {
+    if (!state.showGlow) return;
+    this.glowFrame++;
+    if (this.glowFrame % 3 !== 0) return;
+
+    const ctx = this.glowCtx;
+    ctx.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);
+    // Fade existing glow slightly
+    ctx.fillStyle = 'rgba(7, 7, 13, 0.15)';
+    ctx.fillRect(0, 0, this.width, this.height);
+    // Composite curve onto glow with blur
+    ctx.filter = 'blur(8px)';
+    ctx.globalCompositeOperation = 'lighter';
+    ctx.globalAlpha = 0.3;
+    ctx.drawImage(this.curveCanvas, 0, 0, this.width, this.height);
+    ctx.filter = 'none';
+    ctx.globalCompositeOperation = 'source-over';
+    ctx.globalAlpha = 1;
+  },
+
+  drawConstruction(R, r, d, t, mode) {
+    if (!state.showFX) return;
+    const ctx = this.overlayCtx;
+    const s = state.scale;
+    const cx = this.centerX + state.offsetX;
+    const cy = this.centerY + state.offsetY;
+
+    ctx.lineWidth = 1;
+    ctx.setLineDash([4, 4]);
+
+    // Fixed circle
+    ctx.beginPath();
+    ctx.arc(cx, cy, R * s, 0, Math.PI * 2);
+    ctx.strokeStyle = 'rgba(255,255,255,0.12)';
+    ctx.stroke();
+
+    const center = SpiroMath.innerCenter(mode, R, r, t);
+    const sc = this.toScreen(center);
+
+    ctx.beginPath();
+    ctx.arc(sc.x, sc.y, r * s, 0, Math.PI * 2);
+    ctx.strokeStyle = 'rgba(244, 114, 182, 0.25)';
+    ctx.stroke();
+    ctx.setLineDash([]);
+
+    const pen = SpiroMath.point(mode, R, r, d, t, state.is3D, state.h, state.k);
+    const sp = this.toScreen(pen);
+
+    ctx.beginPath();
+    ctx.moveTo(sc.x, sc.y);
+    ctx.lineTo(sp.x, sp.y);
+    ctx.strokeStyle = 'rgba(251, 191, 36, 0.3)';
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+
+    ctx.beginPath();
+    ctx.arc(sc.x, sc.y, 3, 0, Math.PI * 2);
+    ctx.fillStyle = 'rgba(244, 114, 182, 0.5)';
+    ctx.fill();
+  },
+
+  stampLayer() {
+    const ctx = this.layersCtx;
+    ctx.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);
+    ctx.globalAlpha = 0.85;
+    ctx.drawImage(this.curveCanvas, 0, 0, this.width, this.height);
+    if (state.showGlow) {
+      ctx.globalAlpha = 0.6;
+      ctx.drawImage(this.glowCanvas, 0, 0, this.width, this.height);
+    }
+    ctx.globalAlpha = 1;
+  }
+};
+
+// ===================================================================
+// PEN TRAIL + PARTICLES
+// ===================================================================
+const PenTrail = {
+  trail: [],
+  maxTrail: 12,
+  particles: [],
+  maxParticles: 40,
+
+  addPoint(screenPt, hue) {
+    this.trail.push({ x: screenPt.x, y: screenPt.y, hue });
+    if (this.trail.length > this.maxTrail) this.trail.shift();
+
+    // Spawn 2 particles
+    for (let i = 0; i < 2; i++) {
+      if (this.particles.length >= this.maxParticles) this.particles.shift();
+      const angle = Math.random() * Math.PI * 2;
+      const speed = 0.5 + Math.random() * 1.5;
+      this.particles.push({
+        x: screenPt.x, y: screenPt.y,
+        vx: Math.cos(angle) * speed, vy: Math.sin(angle) * speed,
+        life: 1, hue
+      });
+    }
+  },
+
+  draw(ctx) {
+    const now = Date.now();
+    // Draw trail
+    for (let i = 0; i < this.trail.length; i++) {
+      const t = this.trail[i];
+      const age = i / this.trail.length;
+      const r = 1 + age * 4;
+      const a = age * 0.7;
+      const wobble = 1 + 0.15 * Math.sin(now * 0.008 + i);
+      ctx.beginPath();
+      ctx.arc(t.x, t.y, r * wobble, 0, Math.PI * 2);
+      ctx.fillStyle = `hsla(${t.hue % 360}, 90%, 70%, ${a})`;
+      ctx.fill();
+    }
+
+    // Draw & update particles
+    for (let i = this.particles.length - 1; i >= 0; i--) {
+      const p = this.particles[i];
+      p.x += p.vx;
+      p.y += p.vy;
+      p.life -= 0.04;
+      if (p.life <= 0) { this.particles.splice(i, 1); continue; }
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, 1.5 * p.life, 0, Math.PI * 2);
+      ctx.fillStyle = `hsla(${p.hue % 360}, 100%, 80%, ${p.life * 0.6})`;
+      ctx.fill();
+    }
+
+    // Pen glow at newest point
+    if (this.trail.length > 0) {
+      const tip = this.trail[this.trail.length - 1];
+      ctx.beginPath();
+      ctx.arc(tip.x, tip.y, 5, 0, Math.PI * 2);
+      ctx.fillStyle = `hsla(${tip.hue % 360}, 100%, 80%, 0.9)`;
+      ctx.shadowColor = `hsl(${tip.hue % 360}, 100%, 70%)`;
+      ctx.shadowBlur = 15;
+      ctx.fill();
+      ctx.shadowBlur = 0;
+    }
+  },
+
+  clear() {
+    this.trail = [];
+    this.particles = [];
+  }
+};
+
+// ===================================================================
+// RIPPLES
+// ===================================================================
+const Ripples = {
+  ripples: [],
+  maxRipples: 15,
+
+  add(x, y, hue) {
+    if (this.ripples.length >= this.maxRipples) this.ripples.shift();
+    this.ripples.push({ x, y, radius: 0, opacity: 0.5, hue, maxRadius: 180 });
+  },
+
+  burst(x, y, hue, count) {
+    for (let i = 0; i < count; i++) {
+      setTimeout(() => this.add(x, y, (hue + i * 40) % 360), i * 80);
+    }
+  },
+
+  update(ctx) {
+    for (let i = this.ripples.length - 1; i >= 0; i--) {
+      const r = this.ripples[i];
+      r.radius += 2.5;
+      r.opacity *= 0.97;
+      if (r.opacity < 0.01 || r.radius > r.maxRadius) { this.ripples.splice(i, 1); continue; }
+      ctx.beginPath();
+      ctx.arc(r.x, r.y, r.radius, 0, Math.PI * 2);
+      ctx.strokeStyle = `hsla(${r.hue % 360}, 90%, 65%, ${r.opacity})`;
+      ctx.lineWidth = 2;
+      ctx.shadowColor = `hsla(${r.hue % 360}, 100%, 70%, ${r.opacity * 0.5})`;
+      ctx.shadowBlur = 8;
+      ctx.stroke();
+      ctx.shadowBlur = 0;
+    }
+  }
+};
+
+// ===================================================================
+// SOUND
+// ===================================================================
+const Sound = {
+  ctx: null, osc: null, gain: null, filter: null,
+  initialized: false,
+
+  init() {
+    if (this.initialized) return;
+    this.ctx = new (window.AudioContext || window.webkitAudioContext)();
+    this.osc = this.ctx.createOscillator();
+    this.filter = this.ctx.createBiquadFilter();
+    this.gain = this.ctx.createGain();
+
+    this.osc.type = 'sine';
+    this.osc.frequency.value = 220;
+    this.filter.type = 'lowpass';
+    this.filter.frequency.value = 800;
+    this.filter.Q.value = 2;
+    this.gain.gain.value = 0;
+
+    this.osc.connect(this.filter);
+    this.filter.connect(this.gain);
+    this.gain.connect(this.ctx.destination);
+    this.osc.start();
+    this.initialized = true;
+  },
+
+  update(penDist, maxDist, hue) {
+    if (!state.soundOn || !this.initialized) return;
+    const freq = 120 + (penDist / (maxDist || 1)) * 500;
+    this.osc.frequency.setTargetAtTime(freq, this.ctx.currentTime, 0.05);
+    const cutoff = 400 + (hue / 360) * 1200;
+    this.filter.frequency.setTargetAtTime(cutoff, this.ctx.currentTime, 0.05);
+  },
+
+  fadeIn() {
+    if (!this.initialized) return;
+    this.gain.gain.setTargetAtTime(0.08, this.ctx.currentTime, 0.3);
+  },
+
+  fadeOut() {
+    if (!this.initialized) return;
+    this.gain.gain.setTargetAtTime(0, this.ctx.currentTime, 0.2);
+  },
+
+  toggle() {
+    state.soundOn = !state.soundOn;
+    if (state.soundOn) {
+      this.init();
+      if (this.ctx.state === 'suspended') this.ctx.resume();
+      if (state.isPlaying) this.fadeIn();
+    } else {
+      this.fadeOut();
+    }
+    document.getElementById('btn-sound').classList.toggle('active', state.soundOn);
+  }
+};
+
+// ===================================================================
+// IDLE ANIMATION (breathing)
+// ===================================================================
+const IdleAnim = {
+  active: false,
+  angle: 0,
+  hueShift: 0,
+  decelTimer: null,
+
+  start() {
+    if (this.active) return;
+    this.active = true;
+    this.loop();
+  },
+
+  stop() {
+    if (!this.active) return;
+    this.active = false;
+    document.getElementById('canvas-container').style.transform = '';
+    document.getElementById('canvas-container').style.filter = '';
+  },
+
+  loop() {
+    if (!this.active) return;
+    this.angle += 0.06;
+    this.hueShift += 0.12;
+    const container = document.getElementById('canvas-container');
+    container.style.transform = `rotate(${this.angle}deg)`;
+    container.style.filter = `hue-rotate(${this.hueShift}deg)`;
+
+    // Pulse glow
+    if (state.showGlow) {
+      const pulse = 0.7 + 0.3 * Math.sin(Date.now() * 0.002);
+      Renderer.glowCanvas.style.opacity = pulse;
+    }
+
+    requestAnimationFrame(() => this.loop());
+  }
+};
+
+// ===================================================================
+// AUTO-EVOLVE
+// ===================================================================
+const Evolve = {
+  targets: null,
+  nextChangeTime: 0,
+
+  start() {
+    state.isEvolving = true;
+    this.pickTargets();
+    this.nextChangeTime = Date.now() + 6000;
+    document.getElementById('btn-evolve').classList.add('active');
+    if (!state.isPlaying) Animator.start();
+  },
+
+  stop() {
+    state.isEvolving = false;
+    document.getElementById('btn-evolve').classList.remove('active');
+  },
+
+  toggle() {
+    state.isEvolving ? this.stop() : this.start();
+  },
+
+  pickTargets() {
+    this.targets = {
+      R: 50 + Math.random() * 130,
+      r: 10 + Math.random() * 80,
+      d: 10 + Math.random() * 80
+    };
+  },
+
+  update() {
+    if (!state.isEvolving) return;
+
+    // Lerp toward targets
+    state.R += (this.targets.R - state.R) * 0.003;
+    state.r += (this.targets.r - state.r) * 0.003;
+    state.d += (this.targets.d - state.d) * 0.003;
+
+    // Update UI
+    document.getElementById('slider-R').value = Math.round(state.R);
+    document.getElementById('val-R').textContent = Math.round(state.R);
+    document.getElementById('slider-r').value = Math.round(state.r);
+    document.getElementById('val-r').textContent = Math.round(state.r);
+    document.getElementById('slider-d').value = Math.round(state.d);
+    document.getElementById('val-d').textContent = Math.round(state.d);
+
+    // Pick new targets periodically
+    if (Date.now() > this.nextChangeTime) {
+      this.pickTargets();
+      this.nextChangeTime = Date.now() + 6000 + Math.random() * 4000;
+    }
+
+    // Subtle fade for ghost trail effect
+    Renderer.fadeCurve(0.008);
+    Renderer.computeScale();
+  }
+};
+
+// ===================================================================
+// ANIMATOR
+// ===================================================================
+const Animator = {
+  stepsPerFrame: 8,
+
+  start() {
+    if (state.isPlaying) return;
+    if (state.isComplete) this.reset();
+    state.isPlaying = true;
+    state.totalT = SpiroMath.totalT(Math.round(state.R), Math.round(state.r));
+    Renderer.computeScale();
+    this.updatePlayButton();
+    IdleAnim.stop();
+    clearTimeout(state.idleTimer);
+    if (state.soundOn) Sound.fadeIn();
+    this.loop();
+  },
+
+  pause() {
+    state.isPlaying = false;
+    if (state.animId) cancelAnimationFrame(state.animId);
+    state.animId = null;
+    this.updatePlayButton();
+    if (state.soundOn) Sound.fadeOut();
+  },
+
+  toggle() { state.isPlaying ? this.pause() : this.start(); },
+
+  reset() {
+    this.pause();
+    state.currentT = 0;
+    state.prevPoint = null;
+    state.isComplete = false;
+    Renderer.clearCurve();
+    Renderer.clearGlow();
+    Renderer.clearOverlay();
+    PenTrail.clear();
+    IdleAnim.stop();
+    clearTimeout(state.idleTimer);
+    MathPanel.update();
+  },
+
+  softReset() {
+    // Smooth morphing: fade instead of clear
+    Renderer.fadeCurve(0.3);
+    if (state.showGlow) {
+      const ctx = Renderer.glowCtx;
+      ctx.setTransform(Renderer.dpr, 0, 0, Renderer.dpr, 0, 0);
+      ctx.fillStyle = 'rgba(7, 7, 13, 0.4)';
+      ctx.fillRect(0, 0, Renderer.width, Renderer.height);
+    }
+    state.currentT = 0;
+    state.prevPoint = null;
+    state.isComplete = false;
+    PenTrail.clear();
+    IdleAnim.stop();
+    clearTimeout(state.idleTimer);
+    state.totalT = SpiroMath.totalT(Math.round(state.R), Math.round(state.r));
+    Renderer.computeScale();
+    if (!state.isPlaying) this.start();
+  },
+
+  restart() { this.reset(); this.start(); },
+
+  loop() {
+    if (!state.isPlaying) return;
+
+    Evolve.update();
+
+    if (state.is3D) Camera.update();
+
+    const dt = state.speed * 0.015;
+    const totalT = state.isEvolving ? SpiroMath.totalT(Math.round(state.R), Math.round(state.r)) : state.totalT;
+    const R = state.isEvolving ? state.R : Math.round(state.R);
+    const r = state.isEvolving ? state.r : Math.round(state.r);
+    const d = state.d;
+
+    for (let i = 0; i < this.stepsPerFrame; i++) {
+      if (!state.isEvolving && state.currentT >= totalT) {
+        state.isComplete = true;
+        this.pause();
+        this.onComplete();
+        return;
+      }
+
+      const nextT = state.isEvolving ? state.currentT + dt : Math.min(state.currentT + dt, totalT);
+      const pt = SpiroMath.point(state.mode, R, r, d, nextT, state.is3D, state.h, state.k);
+
+      if (state.prevPoint) {
+        const progress = totalT > 0 ? (nextT % totalT) / totalT : 0;
+        const hue = state.hueStart + progress * state.hueSweep;
+        const color = `hsl(${hue % 360}, 90%, 60%)`;
+        Renderer.drawSegment(state.prevPoint, pt, color);
+
+        const sp = Renderer.toScreen(pt);
+        PenTrail.addPoint(sp, hue);
+
+        const dist = Math.sqrt(pt.x * pt.x + pt.y * pt.y + (pt.z || 0) * (pt.z || 0));
+        Sound.update(dist, SpiroMath.maxExtent(state.mode, R, r, d), hue);
+      }
+
+      state.prevPoint = pt;
+      state.currentT = nextT;
+
+      // Wrap around in evolve mode
+      if (state.isEvolving && state.currentT > totalT * 2) {
+        state.currentT = 0;
+      }
+    }
+
+    // Draw overlay
+    Renderer.clearOverlay();
+    if (state.showFX) Renderer.drawConstruction(state.R, state.r, state.d, state.currentT, state.mode);
+    PenTrail.draw(Renderer.overlayCtx);
+    Ripples.update(Renderer.overlayCtx);
+    Renderer.updateGlow();
+    MathPanel.updateProgress();
+
+    state.animId = requestAnimationFrame(() => this.loop());
+  },
+
+  onComplete() {
+    Renderer.clearOverlay();
+    Ripples.update(Renderer.overlayCtx);
+    Renderer.updateGlow();
+    MathPanel.update();
+
+    // Completion bloom — pulse glow
+    if (state.showGlow) {
+      let pulseCount = 0;
+      const pulseInterval = setInterval(() => {
+        const v = 0.5 + 0.5 * Math.sin(pulseCount * 0.3);
+        Renderer.glowCanvas.style.opacity = v;
+        pulseCount++;
+        if (pulseCount > 30) {
+          clearInterval(pulseInterval);
+          Renderer.glowCanvas.style.opacity = 1;
+        }
+      }, 50);
+    }
+
+    // Burst ripples from center
+    Ripples.burst(Renderer.centerX, Renderer.centerY, state.hueStart, 5);
+    // Start ripple animation since main loop stopped
+    const rippleLoop = () => {
+      if (Ripples.ripples.length > 0) {
+        Renderer.clearOverlay();
+        Ripples.update(Renderer.overlayCtx);
+        requestAnimationFrame(rippleLoop);
+      }
+    };
+    rippleLoop();
+
+    // Start idle breathing after 2 seconds
+    state.idleTimer = setTimeout(() => {
+      if (state.isComplete && !state.isPlaying) {
+        IdleAnim.start();
+      }
+    }, 2000);
+  },
+
+  updatePlayButton() {
+    const btn = document.getElementById('btn-play');
+    const icon = btn.querySelector('.btn-icon');
+    const label = btn.querySelector('.btn-label');
+    if (state.isPlaying) {
+      icon.innerHTML = '&#9646;&#9646;'; label.textContent = 'Pause'; btn.classList.add('active');
+    } else {
+      icon.innerHTML = '&#9654;'; label.textContent = 'Play'; btn.classList.remove('active');
+    }
+  },
+
+  drawInstant() {
+    this.reset();
+    state.totalT = SpiroMath.totalT(Math.round(state.R), Math.round(state.r));
+    Renderer.computeScale();
+    const totalT = state.totalT;
+    const dt = 0.02;
+    let t = 0, prev = null;
+    while (t < totalT) {
+      const pt = SpiroMath.point(state.mode, state.R, state.r, state.d, t, state.is3D, state.h, state.k);
+      if (prev) {
+        const progress = t / totalT;
+        const hue = state.hueStart + progress * state.hueSweep;
+        Renderer.drawSegment(prev, pt, `hsl(${hue % 360}, 90%, 60%)`);
+      }
+      prev = pt; t += dt;
+    }
+    const finalPt = SpiroMath.point(state.mode, state.R, state.r, state.d, totalT, state.is3D, state.h, state.k);
+    if (prev) Renderer.drawSegment(prev, finalPt, `hsl(${(state.hueStart + state.hueSweep) % 360}, 90%, 60%)`);
+    state.currentT = totalT;
+    state.prevPoint = finalPt;
+    state.isComplete = true;
+    // Update glow for instant draw
+    if (state.showGlow) {
+      const ctx = Renderer.glowCtx;
+      ctx.setTransform(Renderer.dpr, 0, 0, Renderer.dpr, 0, 0);
+      ctx.filter = 'blur(8px)';
+      ctx.globalCompositeOperation = 'lighter';
+      ctx.globalAlpha = 0.35;
+      ctx.drawImage(Renderer.curveCanvas, 0, 0, Renderer.width, Renderer.height);
+      ctx.filter = 'none';
+      ctx.globalCompositeOperation = 'source-over';
+      ctx.globalAlpha = 1;
+    }
+    MathPanel.update();
+  }
+};
+
+// ===================================================================
+// MATH PANEL
+// ===================================================================
+const MathPanel = {
+  update() {
+    this.updateClassification();
+    this.updateEquations();
+    this.updateProperties();
+    this.updateProgress();
+  },
+
+  updateClassification() {
+    const el = document.getElementById('classification');
+    if (!el) return;
+    const R = Math.round(state.R), r = Math.round(state.r);
+    const loops = SpiroMath.loopCount(R, r);
+    const type = state.mode === 'hypo' ? 'Hypotrochoid' : 'Epitrochoid';
+    const dim = state.is3D ? ' (3D)' : '';
+    const cusps = Math.round(state.d) === r ? 'cusps' : 'petals';
+    el.innerHTML = `A <span class="highlight">${type}${dim}</span> with <span class="highlight">${loops}</span> ${cusps}`;
+  },
+
+  updateEquations() {
+    const el = document.getElementById('equation-block');
+    if (!el) return;
+    const R = Math.round(state.R), r = Math.round(state.r), d = Math.round(state.d);
+    const sign = state.mode === 'hypo' ? '&minus;' : '+';
+    const combo = state.mode === 'hypo' ? R - r : R + r;
+    const ratioStr = combo + '/' + r;
+
+    let zLine = '';
+    if (state.is3D) {
+      zLine = `<div style="margin-top:4px"><span class="eq-func">z</span><span class="eq-op">(</span><span class="eq-t">t</span><span class="eq-op">) = </span><span class="eq-h">${state.h}</span><span class="eq-op">&middot;sin(</span><span class="eq-op">${state.k}</span><span class="eq-t">t</span><span class="eq-op">)</span></div>`;
+    }
+
+    el.innerHTML = `
+      <div><span class="eq-func">x</span><span class="eq-op">(</span><span class="eq-t">t</span><span class="eq-op">) = </span><span class="eq-op">(</span><span class="eq-R">${R}</span><span class="eq-op"> ${sign} </span><span class="eq-r">${r}</span><span class="eq-op">)</span><span class="eq-op">cos</span><span class="eq-t">t</span><span class="eq-op"> + </span><span class="eq-d">${d}</span><span class="eq-op">&middot;cos(</span><span class="eq-op">${ratioStr}</span><span class="eq-t"> t</span><span class="eq-op">)</span></div>
+      <div style="margin-top:4px"><span class="eq-func">y</span><span class="eq-op">(</span><span class="eq-t">t</span><span class="eq-op">) = </span><span class="eq-op">(</span><span class="eq-R">${R}</span><span class="eq-op"> ${sign} </span><span class="eq-r">${r}</span><span class="eq-op">)</span><span class="eq-op">sin</span><span class="eq-t">t</span><span class="eq-op"> &minus; </span><span class="eq-d">${d}</span><span class="eq-op">&middot;sin(</span><span class="eq-op">${ratioStr}</span><span class="eq-t"> t</span><span class="eq-op">)</span></div>
+      ${zLine}
+      <div style="margin-top:8px; font-size:11px; color:var(--text-dim);">where <span class="eq-R">R</span>=<span class="eq-R">${R}</span>, <span class="eq-r">r</span>=<span class="eq-r">${r}</span>, <span class="eq-d">d</span>=<span class="eq-d">${d}</span></div>
+    `;
+  },
+
+  updateProperties() {
+    const el = document.getElementById('math-properties');
+    if (!el) return;
+    const R = Math.round(state.R), r = Math.round(state.r), d = Math.round(state.d);
+    const g = SpiroMath.gcd(R, r);
+    const loops = SpiroMath.loopCount(R, r);
+    const [fn, fd] = SpiroMath.simplifyFraction(R, r);
+    const period = (2 * loops).toFixed(0);
+
+    let extra = '';
+    if (state.is3D) {
+      extra = `<div class="math-row"><span class="math-label"><span class="eq-h">h</span> (3D height)</span><span class="math-value">${state.h}</span></div>
+               <div class="math-row"><span class="math-label"><span class="eq-h">k</span> (z freq)</span><span class="math-value">${state.k}</span></div>`;
+    }
+
+    el.innerHTML = `
+      <div class="math-row"><span class="math-label">GCD(<span class="eq-R">R</span>, <span class="eq-r">r</span>)</span><span class="math-value">${g}</span></div>
+      <div class="math-row"><span class="math-label">Loops = <span class="eq-r">r</span>/GCD</span><span class="math-value">${r}/${g} = <span class="eq-R">${loops}</span></span></div>
+      <div class="math-row"><span class="math-label">Ratio <span class="eq-R">R</span>/<span class="eq-r">r</span></span><span class="math-value">${fn}/${fd}</span></div>
+      <div class="math-row"><span class="math-label">Period</span><span class="math-value">${period}&pi; rad</span></div>
+      <div class="math-row"><span class="math-label"><span class="eq-d">d</span>/<span class="eq-r">r</span></span><span class="math-value">${(d / r).toFixed(3)}</span></div>
+      <div class="math-row"><span class="math-label">Symmetry</span><span class="math-value">${loops}-fold</span></div>
+      ${extra}
+    `;
+  },
+
+  updateProgress() {
+    const totalT = state.totalT || SpiroMath.totalT(Math.round(state.R), Math.round(state.r));
+    const progress = totalT > 0 ? Math.min(state.currentT / totalT, 1) : 0;
+    const pct = (progress * 100).toFixed(1);
+    const el = document.getElementById('progress-info');
+    if (el) {
+      el.innerHTML = `
+        <div class="math-row"><span class="math-label">Parameter <span class="eq-t">t</span></span><span class="math-value">${state.currentT.toFixed(1)} / ${totalT.toFixed(1)}</span></div>
+        <div class="math-row"><span class="math-label">Completion</span><span class="math-value">${pct}%</span></div>
+      `;
+    }
+    const bar = document.getElementById('progress-bar');
+    if (bar) bar.style.width = pct + '%';
+  }
+};
+
+// ===================================================================
+// PRESETS
+// ===================================================================
+const PRESETS = [
+  { name: 'Rose',       R: 100, r: 60,  d: 50, mode: 'hypo', hue: 330, sweep: 360 },
+  { name: 'Astroid',    R: 100, r: 25,  d: 25, mode: 'hypo', hue: 180, sweep: 180 },
+  { name: 'Deltoid',    R: 100, r: 33,  d: 33, mode: 'hypo', hue: 120, sweep: 240 },
+  { name: 'Pentaflower',R: 100, r: 60,  d: 60, mode: 'hypo', hue: 0,   sweep: 360 },
+  { name: 'Starfish',   R: 100, r: 40,  d: 35, mode: 'hypo', hue: 200, sweep: 300 },
+  { name: 'Cardioid',   R: 100, r: 100, d: 100,mode: 'epi',  hue: 0,   sweep: 180 },
+  { name: 'Nephroid',   R: 100, r: 50,  d: 50, mode: 'epi',  hue: 280, sweep: 360 },
+  { name: 'Trefoil',    R: 100, r: 33,  d: 40, mode: 'epi',  hue: 60,  sweep: 540 },
+  { name: 'Lace',       R: 120, r: 84,  d: 60, mode: 'hypo', hue: 160, sweep: 360 },
+  { name: 'Atom',       R: 80,  r: 48,  d: 70, mode: 'hypo', hue: 30,  sweep: 180 },
+  { name: 'Cosmos',     R: 100, r: 63,  d: 50, mode: 'epi',  hue: 240, sweep: 540 },
+  { name: 'Bloom',      R: 150, r: 37,  d: 30, mode: 'hypo', hue: 0,   sweep: 720 },
+];
+
+function renderPresetThumbnail(preset, size) {
+  const canvas = document.createElement('canvas');
+  const dpr = window.devicePixelRatio || 1;
+  canvas.width = size * dpr; canvas.height = size * dpr;
+  canvas.style.width = size + 'px'; canvas.style.height = size + 'px';
+  const ctx = canvas.getContext('2d');
+  ctx.scale(dpr, dpr);
+  const { R, r, d, mode, hue, sweep } = preset;
+  const totalT = SpiroMath.totalT(R, r);
+  const maxExt = SpiroMath.maxExtent(mode, R, r, d);
+  const s = (size * 0.42) / (maxExt || 1);
+  const cx = size / 2, cy = size / 2;
+  const dt = 0.03; let t = 0, prev = null;
+  ctx.lineWidth = 1; ctx.lineCap = 'round';
+  while (t < totalT) {
+    const pt = SpiroMath.point(mode, R, r, d, t, false, 0, 0);
+    if (prev) {
+      const h = hue + (t / totalT) * sweep;
+      ctx.beginPath();
+      ctx.moveTo(cx + prev.x * s, cy - prev.y * s);
+      ctx.lineTo(cx + pt.x * s, cy - pt.y * s);
+      ctx.strokeStyle = `hsl(${h % 360}, 85%, 58%)`; ctx.stroke();
+    }
+    prev = pt; t += dt;
+  }
+  return canvas;
+}
+
+function buildPresetGallery() {
+  const gallery = document.getElementById('preset-gallery');
+  gallery.innerHTML = '';
+  PRESETS.forEach((preset, i) => {
+    const item = document.createElement('div');
+    item.className = 'preset-item';
+    item.appendChild(renderPresetThumbnail(preset, 80));
+    const nameEl = document.createElement('div');
+    nameEl.className = 'preset-name';
+    nameEl.textContent = preset.name;
+    item.appendChild(nameEl);
+    item.addEventListener('click', () => loadPreset(i));
+    gallery.appendChild(item);
+  });
+}
+
+function loadPreset(index) {
+  const p = PRESETS[index];
+  state.R = p.R; state.r = p.r; state.d = p.d;
+  state.mode = p.mode; state.hueStart = p.hue; state.hueSweep = p.sweep;
+  updateAllSliderUI();
+  document.querySelectorAll('[data-mode]').forEach(btn => btn.classList.toggle('active', btn.dataset.mode === p.mode));
+  Animator.restart();
+}
+
+function updateAllSliderUI() {
+  document.getElementById('slider-R').value = Math.round(state.R);
+  document.getElementById('val-R').textContent = Math.round(state.R);
+  document.getElementById('slider-r').value = Math.round(state.r);
+  document.getElementById('val-r').textContent = Math.round(state.r);
+  document.getElementById('slider-d').value = Math.round(state.d);
+  document.getElementById('val-d').textContent = Math.round(state.d);
+  document.getElementById('slider-hue').value = state.hueStart;
+  document.getElementById('val-hue').textContent = state.hueStart + '\u00b0';
+  document.getElementById('slider-sweep').value = state.hueSweep;
+  document.getElementById('val-sweep').textContent = state.hueSweep + '\u00b0';
+}
+
+// ===================================================================
+// SHUFFLE (randomize with slot-machine animation)
+// ===================================================================
+function doShuffle() {
+  if (state.isShuffling) return;
+  state.isShuffling = true;
+  Evolve.stop();
+  IdleAnim.stop();
+
+  let cycles = 0;
+  const maxCycles = 18;
+  const interval = setInterval(() => {
+    const R = 60 + Math.floor(Math.random() * 100);
+    const r = 10 + Math.floor(Math.random() * (R - 15));
+    const g = SpiroMath.gcd(R, r);
+    const loops = r / g;
+    // Skip if too many loops (boring dense patterns)
+    if (loops > 15) { return; }
+    const d = Math.floor(r * (0.3 + Math.random() * 0.7));
+    const mode = Math.random() > 0.5 ? 'epi' : 'hypo';
+    const hue = Math.floor(Math.random() * 360);
+    const sweep = 180 + Math.floor(Math.random() * 540);
+
+    state.R = R; state.r = r; state.d = d; state.mode = mode;
+    state.hueStart = hue; state.hueSweep = sweep;
+    updateAllSliderUI();
+
+    // Quick flash draw
+    Animator.drawInstant();
+
+    cycles++;
+    if (cycles >= maxCycles) {
+      clearInterval(interval);
+      // Flash
+      const flash = document.getElementById('flash-overlay');
+      flash.classList.add('flash');
+      setTimeout(() => flash.classList.remove('flash'), 100);
+
+      state.isShuffling = false;
+      document.querySelectorAll('[data-mode]').forEach(btn => btn.classList.toggle('active', btn.dataset.mode === state.mode));
+      Animator.restart();
+    }
+  }, 80);
+}
+
+// ===================================================================
+// CANVAS TOUCH INTERACTIONS
+// ===================================================================
+function wireCanvasTouch() {
+  const canvas = document.getElementById('overlay-canvas');
+  let touchStartAngle = 0;
+  let touchStartDist = 0;
+  let isDragging = false;
+  let lastTouchX = 0, lastTouchY = 0;
+
+  // Two-finger tracking
+  let twoFingerStart = null;
+
+  canvas.addEventListener('touchstart', (e) => {
+    if (e.touches.length === 1) {
+      e.preventDefault();
+      const t = e.touches[0];
+      const dx = t.clientX - Renderer.centerX;
+      const dy = t.clientY - Renderer.centerY;
+      touchStartDist = Math.hypot(dx, dy);
+      touchStartAngle = Math.atan2(dy, dx);
+      isDragging = true;
+      lastTouchX = t.clientX;
+      lastTouchY = t.clientY;
+
+      // Wake from idle
+      IdleAnim.stop();
+      clearTimeout(state.idleTimer);
+
+      // Ripple!
+      const hue = state.hueStart + ((state.currentT / (state.totalT || 1)) * state.hueSweep);
+      Ripples.add(t.clientX, t.clientY, hue);
+
+      // If not playing and not in 3D, start a ripple redraw loop
+      if (!state.isPlaying && !state.is3D) {
+        const ripLoop = () => {
+          if (Ripples.ripples.length > 0) {
+            Renderer.clearOverlay();
+            Ripples.update(Renderer.overlayCtx);
+            requestAnimationFrame(ripLoop);
+          }
+        };
+        ripLoop();
+      }
+    } else if (e.touches.length === 2) {
+      e.preventDefault();
+      const t1 = e.touches[0], t2 = e.touches[1];
+      twoFingerStart = {
+        dist: Math.hypot(t2.clientX - t1.clientX, t2.clientY - t1.clientY),
+        scale: state.scale,
+        midX: (t1.clientX + t2.clientX) / 2,
+        midY: (t1.clientY + t2.clientY) / 2,
+        offX: state.offsetX, offY: state.offsetY
+      };
+      isDragging = false;
+    }
+  }, { passive: false });
+
+  canvas.addEventListener('touchmove', (e) => {
+    if (e.touches.length === 1 && isDragging) {
+      e.preventDefault();
+      const t = e.touches[0];
+      const dx = t.clientX - Renderer.centerX;
+      const dy = t.clientY - Renderer.centerY;
+
+      if (state.is3D) {
+        // 3D orbit
+        const deltaX = t.clientX - lastTouchX;
+        const deltaY = t.clientY - lastTouchY;
+        Camera.velYaw = deltaX * 0.005;
+        Camera.velPitch = deltaY * 0.005;
+        Camera.yaw += Camera.velYaw;
+        Camera.pitch += Camera.velPitch;
+        lastTouchX = t.clientX;
+        lastTouchY = t.clientY;
+        Camera.autoRotate = false;
+        // Redraw if complete
+        if (state.isComplete) Animator.drawInstant();
+      } else {
+        // 2D: drag to change d
+        const dist = Math.hypot(dx, dy);
+        const maxExt = SpiroMath.maxExtent(state.mode, state.R, state.r, state.d);
+        const newD = Math.max(1, Math.min(195, (dist / state.scale)));
+        state.d = Math.round(newD);
+        document.getElementById('slider-d').value = state.d;
+        document.getElementById('val-d').textContent = state.d;
+
+        // Soft reset — morphing effect
+        if (state.isPlaying || state.isComplete) {
+          Animator.softReset();
+        }
+      }
+    } else if (e.touches.length === 2 && twoFingerStart) {
+      e.preventDefault();
+      const t1 = e.touches[0], t2 = e.touches[1];
+      const dist = Math.hypot(t2.clientX - t1.clientX, t2.clientY - t1.clientY);
+      const mid = { x: (t1.clientX + t2.clientX) / 2, y: (t1.clientY + t2.clientY) / 2 };
+      state.scale = twoFingerStart.scale * (dist / twoFingerStart.dist);
+      state.offsetX = twoFingerStart.offX + (mid.x - twoFingerStart.midX);
+      state.offsetY = twoFingerStart.offY + (mid.y - twoFingerStart.midY);
+      if (state.isComplete || !state.isPlaying) Animator.drawInstant();
+    }
+  }, { passive: false });
+
+  canvas.addEventListener('touchend', (e) => {
+    isDragging = false;
+    if (e.touches.length < 2) twoFingerStart = null;
+    if (state.is3D) Camera.autoRotate = true;
+  });
+
+  // Mouse click for ripples on desktop
+  canvas.addEventListener('click', (e) => {
+    if (e.target === canvas) {
+      const hue = state.hueStart + ((state.currentT / (state.totalT || 1)) * state.hueSweep);
+      Ripples.add(e.clientX, e.clientY, hue);
+      if (!state.isPlaying) {
+        const ripLoop = () => {
+          if (Ripples.ripples.length > 0) {
+            Renderer.clearOverlay();
+            Ripples.update(Renderer.overlayCtx);
+            requestAnimationFrame(ripLoop);
+          }
+        };
+        ripLoop();
+      }
+    }
+  });
+
+  // Mouse drag for 3D orbit
+  let mouseDown = false;
+  canvas.addEventListener('mousedown', (e) => {
+    if (state.is3D) {
+      mouseDown = true;
+      lastTouchX = e.clientX;
+      lastTouchY = e.clientY;
+      Camera.autoRotate = false;
+      IdleAnim.stop();
+    }
+  });
+  window.addEventListener('mousemove', (e) => {
+    if (mouseDown && state.is3D) {
+      const deltaX = e.clientX - lastTouchX;
+      const deltaY = e.clientY - lastTouchY;
+      Camera.velYaw = deltaX * 0.005;
+      Camera.velPitch = deltaY * 0.005;
+      Camera.yaw += Camera.velYaw;
+      Camera.pitch += Camera.velPitch;
+      lastTouchX = e.clientX;
+      lastTouchY = e.clientY;
+      if (state.isComplete) Animator.drawInstant();
+    }
+  });
+  window.addEventListener('mouseup', () => {
+    mouseDown = false;
+    if (state.is3D) Camera.autoRotate = true;
+  });
+}
+
+// ===================================================================
+// UI WIRING
+// ===================================================================
+function wireControls() {
+  const paramSliders = [
+    { id: 'slider-R', val: 'val-R', key: 'R', fmt: v => v, isParam: true },
+    { id: 'slider-r', val: 'val-r', key: 'r', fmt: v => v, isParam: true },
+    { id: 'slider-d', val: 'val-d', key: 'd', fmt: v => v, isParam: true },
+    { id: 'slider-h', val: 'val-h', key: 'h', fmt: v => v, isParam: true },
+    { id: 'slider-k', val: 'val-k', key: 'k', fmt: v => v, isParam: true },
+    { id: 'slider-speed', val: 'val-speed', key: 'speed', fmt: v => v },
+    { id: 'slider-width', val: 'val-width', key: 'lineWidth', fmt: v => v },
+    { id: 'slider-hue', val: 'val-hue', key: 'hueStart', fmt: v => v + '\u00b0', isParam: true },
+    { id: 'slider-sweep', val: 'val-sweep', key: 'hueSweep', fmt: v => v + '\u00b0', isParam: true },
+  ];
+
+  paramSliders.forEach(({ id, val, key, fmt, isParam }) => {
+    const slider = document.getElementById(id);
+    const display = document.getElementById(val);
+    slider.addEventListener('input', () => {
+      const v = parseFloat(slider.value);
+      state[key] = v;
+      display.textContent = fmt(v);
+      IdleAnim.stop();
+      clearTimeout(state.idleTimer);
+      if (isParam) Animator.softReset();
+    });
+  });
+
+  // Curve mode toggle
+  document.querySelectorAll('[data-mode]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('[data-mode]').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      state.mode = btn.dataset.mode;
+      Animator.softReset();
+    });
+  });
+
+  // 2D/3D toggle
+  document.querySelectorAll('.dim-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.dim-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      state.is3D = btn.dataset.dim === '3d';
+      document.getElementById('controls-panel').classList.toggle('show-3d', state.is3D);
+      Animator.restart();
+    });
+  });
+
+  // Action buttons
+  document.getElementById('btn-play').addEventListener('click', () => Animator.toggle());
+  document.getElementById('btn-clear').addEventListener('click', () => {
+    Animator.reset();
+    Renderer.clearLayers();
+    state.layerCount = 0;
+    updateLayerBadge();
+  });
+
+  document.getElementById('btn-fx').addEventListener('click', () => {
+    state.showFX = !state.showFX;
+    state.showGlow = state.showFX;
+    document.getElementById('btn-fx').classList.toggle('active', state.showFX);
+    if (!state.showFX) { Renderer.clearOverlay(); Renderer.clearGlow(); }
+    else if (state.isComplete) Animator.drawInstant();
+  });
+
+  document.getElementById('btn-save').addEventListener('click', () => {
+    // Composite all canvases
+    const c = document.createElement('canvas');
+    const dpr = Renderer.dpr;
+    c.width = Renderer.width * dpr; c.height = Renderer.height * dpr;
+    const ctx = c.getContext('2d');
+    ctx.fillStyle = '#07070d';
+    ctx.fillRect(0, 0, c.width, c.height);
+    ctx.drawImage(Renderer.layersCanvas, 0, 0);
+    ctx.drawImage(Renderer.glowCanvas, 0, 0);
+    ctx.drawImage(Renderer.curveCanvas, 0, 0);
+    const link = document.createElement('a');
+    link.download = `spirograph-${Date.now()}.png`;
+    link.href = c.toDataURL('image/png');
+    link.click();
+  });
+
+  document.getElementById('btn-sound').addEventListener('click', () => Sound.toggle());
+
+  document.getElementById('btn-layer').addEventListener('click', () => {
+    Renderer.stampLayer();
+    state.layerCount++;
+    updateLayerBadge();
+    Animator.reset();
+    Animator.start();
+  });
+
+  document.getElementById('btn-shuffle').addEventListener('click', doShuffle);
+  document.getElementById('btn-evolve').addEventListener('click', () => Evolve.toggle());
+
+  // Panel toggles
+  document.getElementById('controls-toggle').addEventListener('click', () => {
+    document.getElementById('controls-panel').classList.toggle('collapsed');
+  });
+  document.getElementById('math-toggle').addEventListener('click', () => {
+    document.getElementById('math-panel').classList.toggle('collapsed');
+    MathPanel.update();
+  });
+
+  // Shake to randomize
+  if (window.DeviceMotionEvent) {
+    let lastShake = 0;
+    window.addEventListener('devicemotion', (e) => {
+      const a = e.accelerationIncludingGravity;
+      if (!a) return;
+      const force = Math.sqrt(a.x * a.x + a.y * a.y + a.z * a.z);
+      if (force > 25 && Date.now() - lastShake > 2000) {
+        lastShake = Date.now();
+        doShuffle();
+      }
+    });
+  }
+}
+
+function updateLayerBadge() {
+  const badge = document.getElementById('layer-badge');
+  if (state.layerCount > 0) {
+    badge.classList.add('show');
+    badge.textContent = state.layerCount;
+  } else {
+    badge.classList.remove('show');
+  }
+}
+
+// ===================================================================
+// RESIZE
+// ===================================================================
+let resizeTimer;
+function handleResize() {
+  clearTimeout(resizeTimer);
+  resizeTimer = setTimeout(() => {
+    Renderer.resize();
+    if (state.currentT > 0) Animator.drawInstant();
+  }, 150);
+}
+
+// ===================================================================
+// 3D AUTO-ROTATE LOOP (runs when drawing is complete in 3D mode)
+// ===================================================================
+function start3DIdleRotation() {
+  if (!state.is3D || !state.isComplete) return;
+  const loop = () => {
+    if (!state.isComplete || state.isPlaying || !state.is3D) return;
+    Camera.update();
+    Animator.drawInstant();
+    requestAnimationFrame(loop);
+  };
+  loop();
+}
+
+// ===================================================================
+// INIT
+// ===================================================================
+function init() {
+  Renderer.init();
+  wireControls();
+  wireCanvasTouch();
+  buildPresetGallery();
+  MathPanel.update();
+  window.addEventListener('resize', handleResize);
+  window.addEventListener('orientationchange', handleResize);
+  Animator.restart();
+}
+
+document.addEventListener('DOMContentLoaded', init);
+</script>
+</body>
+</html>
