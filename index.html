@@ -272,8 +272,8 @@ input[type="range"]:active::-webkit-slider-thumb { transform: scale(1.2); box-sh
   <div class="panel-header">Mode</div>
   <div class="panel-section">
     <div class="mode-toggle">
-      <button class="mode-btn active" data-mode="hypo">Hypotrochoid</button>
-      <button class="mode-btn" data-mode="epi">Epitrochoid</button>
+      <button class="mode-btn curve-mode-btn active" data-mode="hypo">Hypotrochoid</button>
+      <button class="mode-btn curve-mode-btn" data-mode="epi">Epitrochoid</button>
     </div>
     <div class="mode-toggle" style="margin-top:8px">
       <button class="mode-btn active dim-btn" data-dim="2d">2D</button>
@@ -1264,7 +1264,7 @@ function loadPreset(index) {
   state.R = p.R; state.r = p.r; state.d = p.d;
   state.mode = p.mode; state.hueStart = p.hue; state.hueSweep = p.sweep;
   updateAllSliderUI();
-  document.querySelectorAll('[data-mode]').forEach(btn => btn.classList.toggle('active', btn.dataset.mode === p.mode));
+  document.querySelectorAll('.curve-mode-btn').forEach(btn => btn.classList.toggle('active', btn.dataset.mode === p.mode));
   Animator.restart();
 }
 
@@ -1320,7 +1320,7 @@ function doShuffle() {
       setTimeout(() => flash.classList.remove('flash'), 100);
 
       state.isShuffling = false;
-      document.querySelectorAll('[data-mode]').forEach(btn => btn.classList.toggle('active', btn.dataset.mode === state.mode));
+      document.querySelectorAll('.curve-mode-btn').forEach(btn => btn.classList.toggle('active', btn.dataset.mode === state.mode));
       Animator.restart();
     }
   }, 80);
@@ -1513,10 +1513,10 @@ function wireControls() {
     });
   });
 
-  // Curve mode toggle
-  document.querySelectorAll('[data-mode]').forEach(btn => {
+  // Curve mode toggle (hypo/epi only — scoped to .curve-mode-btn to avoid touching 2D/3D buttons)
+  document.querySelectorAll('.curve-mode-btn').forEach(btn => {
     btn.addEventListener('click', () => {
-      document.querySelectorAll('[data-mode]').forEach(b => b.classList.remove('active'));
+      document.querySelectorAll('.curve-mode-btn').forEach(b => b.classList.remove('active'));
       btn.classList.add('active');
       state.mode = btn.dataset.mode;
       Animator.softReset();
