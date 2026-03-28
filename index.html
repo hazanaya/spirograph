@@ -1724,6 +1724,11 @@ function wireControls() {
     Renderer.stampLayer();
     state.layerCount++;
     updateLayerBadge();
+    // Auto-rotate hue by the golden angle so each layer is a maximally
+    // distinct color from all previous ones — no manual color change needed.
+    state.hueStart = (state.hueStart + 137.508) % 360;
+    document.getElementById('slider-hue').value = Math.round(state.hueStart);
+    document.getElementById('val-hue').textContent = Math.round(state.hueStart) + '\u00b0';
     Animator.reset();
     Animator.start();
   });
