@@ -6,6 +6,10 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="Spirograph">
+<link rel="manifest" href="manifest.json">
+<link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-192.png">
+<meta name="theme-color" content="#07070d">
 <title>Spirograph</title>
 <style>
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -96,6 +100,18 @@ canvas {
   -webkit-tap-highlight-color: transparent;
 }
 .panel-toggle:active { transform: scale(0.9); }
+@keyframes toggle-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(99, 102, 241, 0); }
+  50% { box-shadow: 0 0 0 8px rgba(99, 102, 241, 0.35); }
+}
+.panel-toggle.hint-pulse { animation: toggle-pulse 1.5s ease-in-out 3; }
+.palette-swatch {
+  width: 28px; height: 28px; border-radius: 50%; border: 2px solid transparent;
+  cursor: pointer; transition: transform 0.15s, border-color 0.15s;
+  -webkit-tap-highlight-color: transparent;
+}
+.palette-swatch:active { transform: scale(0.9); }
+.palette-swatch.active { border-color: white; }
 
 #controls-toggle { top: 16px; left: 16px; }
 #controls-panel:not(.collapsed) ~ #controls-toggle { left: calc(var(--panel-width) + 16px); }
@@ -114,7 +130,14 @@ canvas {
 .slider-group:last-child { margin-bottom: 0; }
 .slider-label { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 6px; }
 .slider-label .name { font-weight: 600; font-size: 13px; }
-.slider-label .value { font-family: 'SF Mono', ui-monospace, monospace; font-size: 13px; min-width: 36px; text-align: right; }
+.slider-label .value { font-family: 'SF Mono', ui-monospace, monospace; font-size: 13px; min-width: 36px; text-align: right; cursor: pointer; border-bottom: 1px dashed transparent; transition: border-color 0.2s; }
+.slider-label .value:hover { border-bottom-color: rgba(255,255,255,0.3); }
+.slider-inline-input {
+  font-family: 'SF Mono', ui-monospace, monospace; font-size: 13px;
+  width: 48px; text-align: right; padding: 1px 4px;
+  background: rgba(255,255,255,0.1); border: 1px solid var(--accent);
+  border-radius: 4px; color: inherit; outline: none;
+}
 
 .param-R .name, .param-R .value { color: var(--color-R); }
 .param-r .name, .param-r .value { color: var(--color-r); }
@@ -242,37 +265,49 @@ input[type="range"]:active::-webkit-slider-thumb { transform: scale(1.2); box-sh
 </head>
 <body>
 
-<div id="canvas-container">
-  <canvas id="layers-canvas"></canvas>
-  <canvas id="glow-canvas"></canvas>
-  <canvas id="curve-canvas"></canvas>
-  <canvas id="overlay-canvas"></canvas>
+<div id="canvas-container" role="img" aria-label="Spirograph drawing canvas">
+  <canvas id="layers-canvas" aria-hidden="true"></canvas>
+  <canvas id="glow-canvas" aria-hidden="true"></canvas>
+  <canvas id="curve-canvas" aria-hidden="true"></canvas>
+  <canvas id="overlay-canvas" aria-hidden="true"></canvas>
 </div>
 
 <div id="flash-overlay"></div>
 
-<div id="controls-panel" class="panel">
+<div id="controls-panel" class="panel" role="region" aria-label="Controls">
   <div class="panel-header">Parameters</div>
   <div class="panel-section">
     <div class="slider-group param-R">
       <div class="slider-label"><span class="name">R &middot; Fixed Ring</span><span class="value" id="val-R">100</span></div>
-      <input type="range" id="slider-R" min="20" max="200" value="100" step="1">
+      <input type="range" id="slider-R" min="20" max="200" value="100" step="1" aria-label="R — Fixed ring radius">
     </div>
     <div class="slider-group param-r">
       <div class="slider-label"><span class="name">r &middot; Rolling Wheel</span><span class="value" id="val-r">63</span></div>
-      <input type="range" id="slider-r" min="3" max="195" value="63" step="1">
+      <input type="range" id="slider-r" min="3" max="195" value="63" step="1" aria-label="r — Rolling wheel radius">
     </div>
     <div class="slider-group param-d">
       <div class="slider-label"><span class="name">d &middot; Pen Distance</span><span class="value" id="val-d">50</span></div>
-      <input type="range" id="slider-d" min="1" max="195" value="50" step="1">
+      <input type="range" id="slider-d" min="1" max="195" value="50" step="1" aria-label="d — Pen distance from wheel centre">
+    </div>
+    <div class="slider-group" id="symmetry-group" style="margin-top:4px">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
+        <button class="action-btn" id="btn-symmetry" aria-label="Toggle symmetry lock" style="width:auto;padding:4px 10px;font-size:10px;height:auto;min-height:0">
+          <span class="btn-icon" style="font-size:11px">&#8258;</span><span class="btn-label">Symmetry</span>
+        </button>
+        <span id="symmetry-info" style="font-size:11px;color:var(--text-dim)"></span>
+      </div>
+      <div id="petals-slider-group" style="display:none">
+        <div class="slider-label"><span class="name">Petals</span><span class="value" id="val-petals">7</span></div>
+        <input type="range" id="slider-petals" min="2" max="30" value="7" step="1" aria-label="Number of petals">
+      </div>
     </div>
     <div class="slider-group param-h slider-3d">
       <div class="slider-label"><span class="name">h &middot; 3D Height</span><span class="value" id="val-h">40</span></div>
-      <input type="range" id="slider-h" min="0" max="120" value="40" step="1">
+      <input type="range" id="slider-h" min="0" max="120" value="40" step="1" aria-label="h — 3D sinusoidal height">
     </div>
     <div class="slider-group slider-3d">
       <div class="slider-label"><span class="name">k &middot; Z Frequency</span><span class="value" id="val-k">3</span></div>
-      <input type="range" id="slider-k" min="1" max="20" value="3" step="1">
+      <input type="range" id="slider-k" min="1" max="20" value="3" step="1" aria-label="k — Z-axis frequency multiplier">
     </div>
   </div>
 
@@ -291,12 +326,27 @@ input[type="range"]:active::-webkit-slider-thumb { transform: scale(1.2); box-sh
   <div class="panel-header">Drawing</div>
   <div class="panel-section">
     <div class="slider-group">
-      <div class="slider-label"><span class="name">Speed</span><span class="value" id="val-speed">3</span></div>
-      <input type="range" id="slider-speed" min="0.5" max="10" value="3" step="0.5">
+      <div class="slider-label"><span class="name">Speed</span><span class="value" id="val-speed">0.2</span></div>
+      <input type="range" id="slider-speed" min="0.05" max="10" value="0.2" step="0.05" aria-label="Drawing speed">
     </div>
     <div class="slider-group">
       <div class="slider-label"><span class="name">Line Width</span><span class="value" id="val-width">1.5</span></div>
-      <input type="range" id="slider-width" min="0.5" max="10" value="1.5" step="0.5">
+      <input type="range" id="slider-width" min="0.5" max="10" value="1.5" step="0.5" aria-label="Line width">
+    </div>
+    <div class="mode-toggle" style="margin-top:8px">
+      <button class="mode-btn stroke-btn active" data-stroke="solid" style="font-size:11px">Solid</button>
+      <button class="mode-btn stroke-btn" data-stroke="dotted" style="font-size:11px">Dotted</button>
+      <button class="mode-btn stroke-btn" data-stroke="dashed" style="font-size:11px">Dashed</button>
+      <button class="mode-btn stroke-btn" data-stroke="tapered" style="font-size:11px">Taper</button>
+    </div>
+    <div style="display:flex;align-items:center;gap:8px;margin-top:10px">
+      <button class="action-btn" id="btn-trail" aria-label="Toggle trail mode" style="width:auto;padding:4px 10px;font-size:10px;height:auto;min-height:0">
+        <span class="btn-icon" style="font-size:11px">&#8766;</span><span class="btn-label">Trail</span>
+      </button>
+    </div>
+    <div class="slider-group" id="group-trail" style="display:none;margin-top:8px">
+      <div class="slider-label"><span class="name">Trail Length</span><span class="value" id="val-trail">50%</span></div>
+      <input type="range" id="slider-trail" min="5" max="95" value="50" step="1" aria-label="Trail length — how much of the curve stays visible">
     </div>
   </div>
 
@@ -309,35 +359,58 @@ input[type="range"]:active::-webkit-slider-thumb { transform: scale(1.2); box-sh
     </div>
     <div class="slider-group" id="group-hue">
       <div class="slider-label"><span class="name">Hue</span><span class="value" id="val-hue">0&deg;</span></div>
-      <input type="range" id="slider-hue" min="0" max="360" value="0" step="1">
+      <input type="range" id="slider-hue" min="0" max="360" value="0" step="1" aria-label="Starting hue angle">
     </div>
     <div class="slider-group" id="group-sweep">
       <div class="slider-label"><span class="name">Hue Sweep</span><span class="value" id="val-sweep">360&deg;</span></div>
-      <input type="range" id="slider-sweep" min="0" max="720" value="360" step="1">
+      <input type="range" id="slider-sweep" min="0" max="720" value="360" step="1" aria-label="Hue sweep range">
+    </div>
+    <div class="slider-group" style="margin-top:12px">
+      <div class="slider-label">
+        <span class="name">Background</span>
+        <input type="color" id="bg-color" value="#07070d" aria-label="Background color"
+          style="width:28px;height:22px;padding:0;border:1px solid rgba(255,255,255,0.15);border-radius:4px;background:transparent;cursor:pointer;-webkit-appearance:none">
+      </div>
+    </div>
+    <div id="palette-row" style="display:flex;gap:6px;flex-wrap:wrap;margin-top:10px"></div>
+    <div class="slider-group" id="group-sat" style="margin-top:10px">
+      <div class="slider-label"><span class="name">Saturation</span><span class="value" id="val-sat">90%</span></div>
+      <input type="range" id="slider-sat" min="0" max="100" value="90" step="1" aria-label="Color saturation">
+    </div>
+    <div class="slider-group" id="group-lit">
+      <div class="slider-label"><span class="name">Lightness</span><span class="value" id="val-lit">60%</span></div>
+      <input type="range" id="slider-lit" min="10" max="90" value="60" step="1" aria-label="Color lightness">
     </div>
   </div>
 
   <div class="panel-header">Actions</div>
   <div class="panel-section">
     <div class="action-row">
-      <button class="action-btn" id="btn-play"><span class="btn-icon">&#9654;</span><span class="btn-label">Play</span></button>
-      <button class="action-btn" id="btn-clear"><span class="btn-icon">&#10005;</span><span class="btn-label">Clear</span></button>
-      <button class="action-btn active" id="btn-fx"><span class="btn-icon">&#10024;</span><span class="btn-label">FX</span></button>
-      <button class="action-btn" id="btn-save"><span class="btn-icon">&#8681;</span><span class="btn-label">Save</span></button>
+      <button class="action-btn" id="btn-play" aria-label="Play or pause animation"><span class="btn-icon">&#9654;</span><span class="btn-label">Play</span></button>
+      <button class="action-btn" id="btn-clear" aria-label="Clear canvas and layers"><span class="btn-icon">&#10005;</span><span class="btn-label">Clear</span></button>
+      <button class="action-btn active" id="btn-fx" aria-label="Toggle visual effects"><span class="btn-icon">&#10024;</span><span class="btn-label">FX</span></button>
+    </div>
+    <div class="slider-group" id="group-fx-opacity" style="margin-top:6px;margin-bottom:6px">
+      <div class="slider-label"><span class="name">Guide</span><span class="value" id="val-fx-opacity">100%</span></div>
+      <input type="range" id="slider-fx-opacity" min="0" max="100" value="100" step="5" aria-label="Guide geometry opacity">
     </div>
     <div class="action-row">
-      <button class="action-btn" id="btn-sound"><span class="btn-icon">&#9835;</span><span class="btn-label">Sound</span></button>
-      <button class="action-btn" id="btn-layer" style="position:relative"><span class="btn-icon">&#9776;</span><span class="btn-label">Layer+</span><span class="layer-badge" id="layer-badge">0</span></button>
-      <button class="action-btn" id="btn-shuffle"><span class="btn-icon">&#9858;</span><span class="btn-label">Shuffle</span></button>
-      <button class="action-btn" id="btn-evolve"><span class="btn-icon">&#8734;</span><span class="btn-label">Evolve</span></button>
+      <button class="action-btn" id="btn-save" aria-label="Save as PNG"><span class="btn-icon">&#8681;</span><span class="btn-label">Save</span></button>
     </div>
     <div class="action-row">
-      <button class="action-btn" id="btn-svg"><span class="btn-icon">&#9674;</span><span class="btn-label">SVG</span></button>
-      <button class="action-btn" id="btn-onion"><span class="btn-icon">&#9678;</span><span class="btn-label">Onion</span></button>
+      <button class="action-btn" id="btn-sound" aria-label="Toggle sound synthesis"><span class="btn-icon">&#9835;</span><span class="btn-label">Sound</span></button>
+      <button class="action-btn" id="btn-layer" style="position:relative" aria-label="Add layer"><span class="btn-icon">&#9776;</span><span class="btn-label">Layer+</span><span class="layer-badge" id="layer-badge" aria-hidden="true">0</span></button>
+      <button class="action-btn" id="btn-shuffle" aria-label="Randomize parameters"><span class="btn-icon">&#9858;</span><span class="btn-label">Shuffle</span></button>
+      <button class="action-btn" id="btn-evolve" aria-label="Toggle auto-evolve mode"><span class="btn-icon">&#8734;</span><span class="btn-label">Evolve</span></button>
     </div>
     <div class="action-row">
-      <button class="action-btn" id="btn-rec"><span class="btn-icon" id="rec-icon">&#9679;</span><span class="btn-label" id="rec-label">Rec</span></button>
-      <button class="action-btn" id="btn-share"><span class="btn-icon">&#9651;</span><span class="btn-label">Share</span></button>
+      <button class="action-btn" id="btn-annotate" aria-label="Toggle curve annotations"><span class="btn-icon">&#9698;</span><span class="btn-label">Annotate</span></button>
+      <button class="action-btn" id="btn-svg" aria-label="Export as SVG"><span class="btn-icon">&#9674;</span><span class="btn-label">SVG</span></button>
+      <button class="action-btn" id="btn-onion" aria-label="Toggle onion skin mode"><span class="btn-icon">&#9678;</span><span class="btn-label">Onion</span></button>
+    </div>
+    <div class="action-row">
+      <button class="action-btn" id="btn-rec" aria-label="Record or stop recording"><span class="btn-icon" id="rec-icon">&#9679;</span><span class="btn-label" id="rec-label">Rec</span></button>
+      <button class="action-btn" id="btn-share" aria-label="Copy share URL to clipboard"><span class="btn-icon">&#9651;</span><span class="btn-label">Share</span></button>
     </div>
   </div>
 
@@ -355,7 +428,7 @@ input[type="range"]:active::-webkit-slider-thumb { transform: scale(1.2); box-sh
   </div>
 </div>
 
-<div id="math-panel" class="panel collapsed">
+<div id="math-panel" class="panel collapsed" role="region" aria-label="Math panel">
   <div class="panel-header">Pattern Analysis</div>
   <div class="panel-section"><div id="classification" class="classification"></div></div>
   <div class="panel-header">Equations</div>
@@ -378,27 +451,132 @@ input[type="range"]:active::-webkit-slider-thumb { transform: scale(1.2); box-sh
   </div>
 </div>
 
-<button class="panel-toggle" id="controls-toggle">&#9776;</button>
-<button class="panel-toggle" id="math-toggle">&fnof;</button>
+<button class="panel-toggle" id="controls-toggle" aria-label="Toggle controls panel" aria-expanded="true">&#9776;</button>
+<button class="panel-toggle" id="math-toggle" aria-label="Toggle math panel" aria-expanded="false">&fnof;</button>
 
 <script>
 // ===================================================================
 // SPIROGRAPH MATH
 // ===================================================================
+// ===================================================================
+// UNDO / REDO
+// ===================================================================
+const History = {
+  stack: [],
+  index: -1,
+  maxSize: 50,
+  ignoreNext: false,
+
+  captureState() {
+    return {
+      R: state.R, r: state.r, d: state.d,
+      mode: state.mode, is3D: state.is3D,
+      h: state.h, k: state.k,
+      hueStart: state.hueStart, hueSweep: state.hueSweep,
+      lineWidth: state.lineWidth, speed: state.speed,
+      bgColor: state.bgColor,
+      // Capture layer canvas as data URL only if layers exist
+      layerCount: state.layerCount,
+      layerData: state.layerCount > 0 ? Renderer.layersCanvas.toDataURL() : null
+    };
+  },
+
+  push() {
+    if (this.ignoreNext) { this.ignoreNext = false; return; }
+    const snap = this.captureState();
+    // Don't push if identical to current
+    if (this.index >= 0) {
+      const prev = this.stack[this.index];
+      if (prev.R === snap.R && prev.r === snap.r && prev.d === snap.d &&
+          prev.mode === snap.mode && prev.is3D === snap.is3D &&
+          prev.h === snap.h && prev.k === snap.k &&
+          prev.hueStart === snap.hueStart && prev.hueSweep === snap.hueSweep &&
+          prev.lineWidth === snap.lineWidth && prev.bgColor === snap.bgColor &&
+          prev.layerCount === snap.layerCount) return;
+    }
+    // Truncate any redo history
+    this.stack.length = this.index + 1;
+    this.stack.push(snap);
+    if (this.stack.length > this.maxSize) this.stack.shift();
+    this.index = this.stack.length - 1;
+  },
+
+  restore(snap) {
+    this.ignoreNext = true;
+    state.R = snap.R; state.r = snap.r; state.d = snap.d;
+    state.mode = snap.mode; state.is3D = snap.is3D;
+    state.h = snap.h; state.k = snap.k;
+    state.hueStart = snap.hueStart; state.hueSweep = snap.hueSweep;
+    state.lineWidth = snap.lineWidth; state.speed = snap.speed;
+    state.bgColor = snap.bgColor;
+    document.body.style.background = state.bgColor;
+    document.documentElement.style.setProperty('--bg', state.bgColor);
+    document.getElementById('bg-color').value = state.bgColor;
+    // Restore layers
+    if (snap.layerData) {
+      const img = new Image();
+      img.onload = () => {
+        Renderer.layersCtx.clearRect(0, 0, Renderer.layersCanvas.width, Renderer.layersCanvas.height);
+        Renderer.layersCtx.drawImage(img, 0, 0);
+      };
+      img.src = snap.layerData;
+      state.layerCount = snap.layerCount;
+    } else {
+      Renderer.layersCtx.clearRect(0, 0, Renderer.layersCanvas.width, Renderer.layersCanvas.height);
+      state.layerCount = 0;
+    }
+    updateLayerBadge();
+    updateAllSliderUI();
+    document.querySelectorAll('.curve-mode-btn').forEach(b =>
+      b.classList.toggle('active', b.dataset.mode === state.mode));
+    document.querySelectorAll('.dim-btn').forEach(b =>
+      b.classList.toggle('active', b.dataset.dim === (state.is3D ? '3d' : '2d')));
+    document.getElementById('controls-panel').classList.toggle('show-3d', state.is3D);
+    updateSymmetryInfo();
+    Animator.restart();
+  },
+
+  undo() {
+    if (this.index <= 0) return;
+    this.index--;
+    this.restore(this.stack[this.index]);
+  },
+
+  redo() {
+    if (this.index >= this.stack.length - 1) return;
+    this.index++;
+    this.restore(this.stack[this.index]);
+  }
+};
+
+// Convert hex color to rgba string
+function hexToRgba(hex, alpha) {
+  const r = parseInt(hex.slice(1, 3), 16);
+  const g = parseInt(hex.slice(3, 5), 16);
+  const b = parseInt(hex.slice(5, 7), 16);
+  return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+}
+
+function curveColor(hue) {
+  return `hsl(${hue % 360}, ${state.saturation}%, ${state.lightness}%)`;
+}
+
 const SpiroMath = {
   gcd(a, b) {
     a = Math.round(Math.abs(a)); b = Math.round(Math.abs(b));
     while (b) { [a, b] = [b, a % b]; }
     return a;
   },
-  loopCount(R, r) { const g = this.gcd(R, r); return g === 0 ? 1 : r / g; },
+  loopCount(R, r) { r = Math.max(r, 1); const g = this.gcd(R, r); return g === 0 ? 1 : r / g; },
   totalT(R, r) { return 2 * Math.PI * this.loopCount(R, r); },
 
   hypoPoint(R, r, d, t) {
+    r = Math.max(r, 0.001);
     const diff = R - r, ratio = diff / r;
     return { x: diff * Math.cos(t) + d * Math.cos(ratio * t), y: diff * Math.sin(t) - d * Math.sin(ratio * t), z: 0 };
   },
   epiPoint(R, r, d, t) {
+    r = Math.max(r, 0.001);
     const sum = R + r, ratio = sum / r;
     return { x: sum * Math.cos(t) - d * Math.cos(ratio * t), y: sum * Math.sin(t) - d * Math.sin(ratio * t), z: 0 };
   },
@@ -436,7 +614,6 @@ const Camera = {
   targetYaw: 0.3, targetPitch: 0.4,
   velYaw: 0, velPitch: 0,
   camDist: 500, fov: 400,
-  autoRotate: true,
   friction: 0.96,
 
   rotatePoint(p) {
@@ -459,12 +636,15 @@ const Camera = {
     };
   },
 
+  dragging: false,
+
   update() {
     this.velYaw *= this.friction;
     this.velPitch *= this.friction;
     this.yaw += this.velYaw;
     this.pitch += this.velPitch;
-    if (this.autoRotate && Math.abs(this.velYaw) < 0.0001 && Math.abs(this.velPitch) < 0.0001) {
+    // Auto-rotate when not being dragged and velocity has decayed
+    if (!this.dragging && Math.abs(this.velYaw) < 0.0001 && Math.abs(this.velPitch) < 0.0001) {
       this.yaw += 0.003;
     }
   }
@@ -477,9 +657,9 @@ const state = {
   R: 100, r: 63, d: 50,
   mode: 'hypo', is3D: false,
   h: 40, k: 3,
-  speed: 3, lineWidth: 1.5,
+  speed: 0.2, lineWidth: 1.5,
   hueStart: 0, hueSweep: 360,
-  showFX: true, showGlow: true,
+  showFX: true, showGlow: true, fxOpacity: 100,
   soundOn: false,
   isPlaying: false, currentT: 0, totalT: 0,
   scale: 1, offsetX: 0, offsetY: 0,
@@ -489,7 +669,12 @@ const state = {
   isShuffling: false,
   idleTimer: null, idleAngle: 0, idleHue: 0, isIdle: false,
   canvasDragging: false,
-  onionSkin: false, onionCaptured: false
+  onionSkin: false, onionCaptured: false,
+  symmetryLock: false, targetPetals: 7,
+  trailMode: false, trailLength: 0.5,
+  bgColor: '#07070d',
+  saturation: 90, lightness: 60, strokeMode: 'solid',
+  showAnnotations: false
 };
 
 // ===================================================================
@@ -560,11 +745,11 @@ const Renderer = {
   fadeCurve(alpha) {
     const ctx = this.curveCtx;
     ctx.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);
-    ctx.fillStyle = `rgba(7, 7, 13, ${alpha})`;
+    ctx.fillStyle = hexToRgba(state.bgColor, alpha);
     ctx.fillRect(0, 0, this.width, this.height);
   },
 
-  drawSegment(from, to, color, depthFrom, depthTo) {
+  drawSegment(from, to, color, progress) {
     const ctx = this.curveCtx;
     const a = this.toScreen(from);
     const b = this.toScreen(to);
@@ -578,6 +763,22 @@ const Renderer = {
       lw = state.lineWidth * (0.5 + 1.5 * Math.max(0, Math.min(1, 1 - norm * 0.3)));
     }
 
+    // Stroke mode variations
+    if (state.strokeMode === 'tapered' && progress !== undefined) {
+      lw *= (1 - progress * 0.7);
+    }
+
+    if (state.strokeMode === 'dotted') {
+      // Draw a dot at the endpoint
+      ctx.fillStyle = color;
+      ctx.globalAlpha = alpha;
+      ctx.beginPath();
+      ctx.arc(b.x, b.y, lw * 0.6, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.globalAlpha = 1;
+      return;
+    }
+
     ctx.beginPath();
     ctx.moveTo(a.x, a.y);
     ctx.lineTo(b.x, b.y);
@@ -585,8 +786,14 @@ const Renderer = {
     ctx.globalAlpha = alpha;
     ctx.lineWidth = lw;
     ctx.lineCap = 'round';
+    if (state.strokeMode === 'dashed') {
+      ctx.setLineDash([lw * 3, lw * 2]);
+    } else {
+      ctx.setLineDash([]);
+    }
     ctx.stroke();
     ctx.globalAlpha = 1;
+    if (state.strokeMode === 'dashed') ctx.setLineDash([]);
   },
 
   updateGlow() {
@@ -597,7 +804,7 @@ const Renderer = {
     const ctx = this.glowCtx;
     ctx.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);
     // Fade existing glow slightly
-    ctx.fillStyle = 'rgba(7, 7, 13, 0.15)';
+    ctx.fillStyle = hexToRgba(state.bgColor, 0.15);
     ctx.fillRect(0, 0, this.width, this.height);
     // Composite curve onto glow with blur
     ctx.filter = 'blur(8px)';
@@ -610,11 +817,12 @@ const Renderer = {
   },
 
   drawConstruction(R, r, d, t, mode) {
-    if (!state.showFX) return;
+    if (!state.showFX || state.fxOpacity <= 0) return;
     const ctx = this.overlayCtx;
     const s = state.scale;
     const cx = this.centerX + state.offsetX;
     const cy = this.centerY + state.offsetY;
+    const a = state.fxOpacity / 100; // 0–1 alpha multiplier
 
     ctx.lineWidth = 1;
     ctx.setLineDash([4, 4]);
@@ -622,7 +830,7 @@ const Renderer = {
     // Fixed circle
     ctx.beginPath();
     ctx.arc(cx, cy, R * s, 0, Math.PI * 2);
-    ctx.strokeStyle = 'rgba(255,255,255,0.12)';
+    ctx.strokeStyle = `rgba(255,255,255,${0.12 * a})`;
     ctx.stroke();
 
     const center = SpiroMath.innerCenter(mode, R, r, t);
@@ -630,7 +838,7 @@ const Renderer = {
 
     ctx.beginPath();
     ctx.arc(sc.x, sc.y, r * s, 0, Math.PI * 2);
-    ctx.strokeStyle = 'rgba(244, 114, 182, 0.25)';
+    ctx.strokeStyle = `rgba(244, 114, 182, ${0.25 * a})`;
     ctx.stroke();
     ctx.setLineDash([]);
 
@@ -640,13 +848,13 @@ const Renderer = {
     ctx.beginPath();
     ctx.moveTo(sc.x, sc.y);
     ctx.lineTo(sp.x, sp.y);
-    ctx.strokeStyle = 'rgba(251, 191, 36, 0.3)';
+    ctx.strokeStyle = `rgba(251, 191, 36, ${0.3 * a})`;
     ctx.lineWidth = 1.5;
     ctx.stroke();
 
     ctx.beginPath();
     ctx.arc(sc.x, sc.y, 3, 0, Math.PI * 2);
-    ctx.fillStyle = 'rgba(244, 114, 182, 0.5)';
+    ctx.fillStyle = `rgba(244, 114, 182, ${0.5 * a})`;
     ctx.fill();
   },
 
@@ -846,37 +1054,33 @@ const IdleAnim = {
   active: false,
   angle: 0,
   hueShift: 0,
-  decelTimer: null,
 
-  start() {
-    if (this.active) return;
-    this.active = true;
-    this.loop();
-  },
-
-  stop() {
-    if (!this.active) return;
-    this.active = false;
-    document.getElementById('canvas-container').style.transform = '';
-    document.getElementById('canvas-container').style.filter = '';
-  },
-
-  loop() {
-    if (!this.active) return;
+  // Called every frame by the unified loop when idle
+  tick() {
+    if (!this.active) this.active = true;
     this.angle += 0.06;
     this.hueShift += 0.12;
     const container = document.getElementById('canvas-container');
     container.style.transform = `rotate(${this.angle}deg)`;
     container.style.filter = `hue-rotate(${this.hueShift}deg)`;
 
-    // Pulse glow
-    if (state.showGlow) {
+    // Pulse glow (only if Evolve isn't also running)
+    if (state.showGlow && !state.isEvolving) {
       const pulse = 0.7 + 0.3 * Math.sin(Date.now() * 0.002);
       Renderer.glowCanvas.style.opacity = pulse;
     }
+  },
 
-    requestAnimationFrame(() => this.loop());
-  }
+  reset() {
+    if (!this.active) return;
+    this.active = false;
+    document.getElementById('canvas-container').style.transform = '';
+    document.getElementById('canvas-container').style.filter = '';
+  },
+
+  // Legacy aliases for existing code that calls stop()
+  stop() { this.reset(); },
+  start() { this.active = true; }
 };
 
 // ===================================================================
@@ -1042,133 +1246,269 @@ const Recorder = {
 // ===================================================================
 // ANIMATOR
 // ===================================================================
+// ===================================================================
+// CURVE ANNOTATIONS (symmetry axes, petal numbers, period marker)
+// ===================================================================
+const Annotations = {
+  draw(ctx) {
+    if (!state.showAnnotations || !state.isComplete) return;
+
+    const R = Math.round(state.R), r = Math.round(state.r);
+    const n = SpiroMath.loopCount(R, r);
+    const totalT = state.totalT;
+    const cx = Renderer.centerX + state.offsetX;
+    const cy = Renderer.centerY + state.offsetY;
+
+    // Symmetry axes — N dashed lines from center
+    ctx.save();
+    ctx.strokeStyle = 'rgba(136, 136, 160, 0.3)';
+    ctx.lineWidth = 1;
+    ctx.setLineDash([6, 4]);
+    const axisLen = Math.min(Renderer.width, Renderer.height) * 0.42;
+    for (let k = 0; k < n; k++) {
+      const angle = (2 * Math.PI * k) / n;
+      ctx.beginPath();
+      ctx.moveTo(cx, cy);
+      ctx.lineTo(cx + Math.cos(angle) * axisLen, cy - Math.sin(angle) * axisLen);
+      ctx.stroke();
+    }
+    ctx.setLineDash([]);
+
+    // Petal numbers — find the tip of each petal
+    ctx.font = '11px -apple-system, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    const petalT = totalT / n;
+    for (let k = 0; k < n; k++) {
+      // Sample within this petal's range to find the point farthest from center
+      let maxDist = 0, tipPt = null;
+      const tStart = k * petalT;
+      const tEnd = (k + 1) * petalT;
+      const samples = 30;
+      for (let s = 0; s <= samples; s++) {
+        const t = tStart + (tEnd - tStart) * s / samples;
+        const pt = SpiroMath.point(state.mode, state.R, state.r, state.d, t, state.is3D, state.h, state.k);
+        const dist = pt.x * pt.x + pt.y * pt.y + (pt.z || 0) * (pt.z || 0);
+        if (dist > maxDist) { maxDist = dist; tipPt = pt; }
+      }
+      if (tipPt) {
+        const sp = Renderer.toScreen(tipPt);
+        // Offset label outward from center
+        const dx = sp.x - cx, dy = sp.y - cy;
+        const len = Math.hypot(dx, dy) || 1;
+        const labelX = sp.x + (dx / len) * 14;
+        const labelY = sp.y + (dy / len) * 14;
+        ctx.fillStyle = 'rgba(200, 200, 220, 0.7)';
+        ctx.fillText(k + 1, labelX, labelY);
+      }
+    }
+
+    // Period marker — where the curve closes
+    const closePt = SpiroMath.point(state.mode, state.R, state.r, state.d, totalT, state.is3D, state.h, state.k);
+    const cp = Renderer.toScreen(closePt);
+    ctx.fillStyle = 'rgba(255, 200, 100, 0.8)';
+    ctx.beginPath();
+    // Diamond shape
+    ctx.moveTo(cp.x, cp.y - 5);
+    ctx.lineTo(cp.x + 4, cp.y);
+    ctx.lineTo(cp.x, cp.y + 5);
+    ctx.lineTo(cp.x - 4, cp.y);
+    ctx.closePath();
+    ctx.fill();
+    ctx.fillStyle = 'rgba(255, 200, 100, 0.6)';
+    ctx.font = '10px SF Mono, monospace';
+    ctx.fillText(`t = ${(totalT / Math.PI).toFixed(1)}π`, cp.x + 10, cp.y);
+
+    ctx.restore();
+  }
+};
+
 const Animator = {
   stepsPerFrame: 8,
+  running: false,      // unified loop running
+  idleAge: 0,          // frames since curve completed
 
+  // === UNIFIED LOOP — always running, never stops ===
+  beginLoop() {
+    if (this.running) return;
+    this.running = true;
+    this._frame();
+  },
+
+  _frame() {
+    // 1. Camera always updates in 3D
+    if (state.is3D) Camera.update();
+
+    // 2. Evolve updates params continuously
+    Evolve.update();
+
+    // 3. Advance curve drawing if playing
+    if (state.isPlaying && !state.isComplete) {
+      const dt = state.speed * 0.015;
+      const totalT = state.isEvolving ? SpiroMath.totalT(Math.round(state.R), Math.round(state.r)) : state.totalT;
+      const R = state.isEvolving ? state.R : Math.round(state.R);
+      const r = state.isEvolving ? state.r : Math.round(state.r);
+      const d = state.d;
+
+      // Trail mode: fade canvas each frame so the line chases its tail
+      if (state.trailMode && state.isPlaying) {
+        const fadeAmount = 0.002 + (1 - state.trailLength / 100) * 0.04;
+        Renderer.fadeCurve(fadeAmount);
+        if (state.showGlow) {
+          const ctx = Renderer.glowCtx;
+          ctx.setTransform(Renderer.dpr, 0, 0, Renderer.dpr, 0, 0);
+          ctx.fillStyle = hexToRgba(state.bgColor, fadeAmount * 2);
+          ctx.fillRect(0, 0, Renderer.width, Renderer.height);
+        }
+      }
+
+      for (let i = 0; i < this.stepsPerFrame; i++) {
+        if (!state.isEvolving && state.currentT >= totalT) {
+          if (state.trailMode) {
+            // Wrap around — the curve chases its tail forever
+            state.currentT = 0;
+            state.prevPoint = null;
+            continue;
+          }
+          state.isComplete = true;
+          state.isPlaying = false;
+          this.idleAge = 0;
+          this.onComplete();
+          this.updatePlayButton();
+          break;
+        }
+
+        const nextT = state.isEvolving ? state.currentT + dt : Math.min(state.currentT + dt, totalT);
+        const pt = SpiroMath.point(state.mode, R, r, d, nextT, state.is3D, state.h, state.k);
+
+        if (state.prevPoint) {
+          const progress = totalT > 0 ? (nextT % totalT) / totalT : 0;
+          const hue = state.hueStart + progress * state.hueSweep;
+          Renderer.drawSegment(state.prevPoint, pt, curveColor(hue), progress);
+
+          const sp = Renderer.toScreen(pt);
+          PenTrail.addPoint(sp, hue);
+
+          const dist = Math.sqrt(pt.x * pt.x + pt.y * pt.y + (pt.z || 0) * (pt.z || 0));
+          Sound.update(dist, SpiroMath.maxExtent(state.mode, R, r, d), hue);
+        }
+
+        state.prevPoint = pt;
+        state.currentT = nextT;
+
+        if (state.isEvolving && state.currentT > totalT * 2) {
+          state.currentT = 0;
+        }
+      }
+    }
+
+    // 4. Idle breathing (when complete, after a pause)
+    if (state.isComplete && !state.isPlaying) {
+      this.idleAge++;
+      if (this.idleAge > 120) { // ~2 seconds at 60fps
+        IdleAnim.tick();
+      }
+    }
+
+    // 5. Redraw overlay every frame (ripples, construction, annotations, pen trail)
+    Renderer.clearOverlay();
+    if (state.showFX && state.isPlaying) {
+      Renderer.drawConstruction(state.R, state.r, state.d, state.currentT, state.mode);
+    }
+    if (state.isPlaying) PenTrail.draw(Renderer.overlayCtx);
+    Ripples.update(Renderer.overlayCtx);
+    Annotations.draw(Renderer.overlayCtx);
+    Renderer.updateGlow();
+
+    // 6. 3D redraw when camera is orbiting and curve is complete (every 2nd frame for perf)
+    if (state.is3D && state.isComplete && !state.isPlaying) {
+      this._3dFrame = (this._3dFrame || 0) + 1;
+      if (this._3dFrame % 2 === 0) this._redrawComplete();
+    }
+
+    if (state.isPlaying) MathPanel.updateProgress();
+
+    requestAnimationFrame(() => this._frame());
+  },
+
+  // === Public API ===
   start() {
     if (state.isPlaying) return;
-    if (state.isComplete) this.reset();
+    if (state.isComplete) this.beginDraw();
     state.isPlaying = true;
-    state.totalT = SpiroMath.totalT(Math.round(state.R), Math.round(state.r));
-    Renderer.computeScale();
     this.updatePlayButton();
-    IdleAnim.stop();
-    clearTimeout(state.idleTimer);
     if (state.soundOn) Sound.fadeIn();
-    this.loop();
   },
 
   pause() {
     state.isPlaying = false;
-    if (state.animId) cancelAnimationFrame(state.animId);
-    state.animId = null;
     this.updatePlayButton();
     if (state.soundOn) Sound.fadeOut();
   },
 
   toggle() { state.isPlaying ? this.pause() : this.start(); },
 
-  reset() {
-    this.pause();
-    state.currentT = 0;
-    state.prevPoint = null;
-    state.isComplete = false;
-    Renderer.clearCurve();
-    Renderer.clearGlow();
-    Renderer.clearOverlay();
-    PenTrail.clear();
-    IdleAnim.stop();
-    clearTimeout(state.idleTimer);
-    MathPanel.update();
-  },
-
-  softReset() {
-    // Smooth morphing: fade instead of clear
+  // Morph: fade old curve and start drawing new one
+  beginDraw() {
+    Camera.dragging = false;
+    if (state.onionSkin && !state.onionCaptured && state.isComplete) {
+      state.onionCaptured = true;
+      Renderer.ghostLayer(0.18);
+    }
     Renderer.fadeCurve(0.3);
     if (state.showGlow) {
       const ctx = Renderer.glowCtx;
       ctx.setTransform(Renderer.dpr, 0, 0, Renderer.dpr, 0, 0);
-      ctx.fillStyle = 'rgba(7, 7, 13, 0.4)';
+      ctx.fillStyle = hexToRgba(state.bgColor, 0.4);
       ctx.fillRect(0, 0, Renderer.width, Renderer.height);
     }
     state.currentT = 0;
     state.prevPoint = null;
     state.isComplete = false;
+    this.idleAge = 0;
     PenTrail.clear();
-    IdleAnim.stop();
-    clearTimeout(state.idleTimer);
+    IdleAnim.reset();
     state.totalT = SpiroMath.totalT(Math.round(state.R), Math.round(state.r));
     Renderer.computeScale();
-    if (!state.isPlaying) this.start();
+    MathPanel.update();
   },
 
-  restart() { state.onionCaptured = false; this.reset(); this.start(); },
+  // Restart = begin a new animated draw
+  restart() {
+    state.onionCaptured = false;
+    this.beginDraw();
+    state.isPlaying = true;
+    this.updatePlayButton();
+    if (state.soundOn) Sound.fadeIn();
+  },
 
-  loop() {
-    if (!state.isPlaying) return;
+  // Soft restart (used by mode toggles — morphs without hard clear)
+  softReset() {
+    this.beginDraw();
+    state.isPlaying = true;
+    this.updatePlayButton();
+  },
 
-    Evolve.update();
-
-    if (state.is3D) Camera.update();
-
-    const dt = state.speed * 0.015;
-    const totalT = state.isEvolving ? SpiroMath.totalT(Math.round(state.R), Math.round(state.r)) : state.totalT;
-    const R = state.isEvolving ? state.R : Math.round(state.R);
-    const r = state.isEvolving ? state.r : Math.round(state.r);
-    const d = state.d;
-
-    for (let i = 0; i < this.stepsPerFrame; i++) {
-      if (!state.isEvolving && state.currentT >= totalT) {
-        state.isComplete = true;
-        this.pause();
-        this.onComplete();
-        return;
-      }
-
-      const nextT = state.isEvolving ? state.currentT + dt : Math.min(state.currentT + dt, totalT);
-      const pt = SpiroMath.point(state.mode, R, r, d, nextT, state.is3D, state.h, state.k);
-
-      if (state.prevPoint) {
-        const progress = totalT > 0 ? (nextT % totalT) / totalT : 0;
-        const hue = state.hueStart + progress * state.hueSweep;
-        const color = `hsl(${hue % 360}, 90%, 60%)`;
-        Renderer.drawSegment(state.prevPoint, pt, color);
-
-        const sp = Renderer.toScreen(pt);
-        PenTrail.addPoint(sp, hue);
-
-        const dist = Math.sqrt(pt.x * pt.x + pt.y * pt.y + (pt.z || 0) * (pt.z || 0));
-        Sound.update(dist, SpiroMath.maxExtent(state.mode, R, r, d), hue);
-      }
-
-      state.prevPoint = pt;
-      state.currentT = nextT;
-
-      // Wrap around in evolve mode
-      if (state.isEvolving && state.currentT > totalT * 2) {
-        state.currentT = 0;
-      }
-    }
-
-    // Draw overlay
+  // Full clear (used by Clear button)
+  reset() {
+    this.pause();
+    state.currentT = 0;
+    state.prevPoint = null;
+    state.isComplete = false;
+    this.idleAge = 0;
+    Renderer.clearCurve();
+    Renderer.clearGlow();
     Renderer.clearOverlay();
-    if (state.showFX) Renderer.drawConstruction(state.R, state.r, state.d, state.currentT, state.mode);
-    PenTrail.draw(Renderer.overlayCtx);
-    Ripples.update(Renderer.overlayCtx);
-    Renderer.updateGlow();
-    MathPanel.updateProgress();
-
-    state.animId = requestAnimationFrame(() => this.loop());
+    PenTrail.clear();
+    IdleAnim.reset();
+    MathPanel.update();
   },
 
   onComplete() {
-    if (navigator.vibrate) navigator.vibrate([15, 50, 15]); // double-pulse on iPad/mobile
-    Renderer.clearOverlay();
-    Ripples.update(Renderer.overlayCtx);
-    Renderer.updateGlow();
+    if (navigator.vibrate) navigator.vibrate([15, 50, 15]);
     MathPanel.update();
 
-    // Completion bloom — pulse glow
+    // Completion bloom
     if (state.showGlow) {
       let pulseCount = 0;
       const pulseInterval = setInterval(() => {
@@ -1182,24 +1522,7 @@ const Animator = {
       }, 50);
     }
 
-    // Burst ripples from center
     Ripples.burst(Renderer.centerX, Renderer.centerY, state.hueStart, 5);
-    // Start ripple animation since main loop stopped
-    const rippleLoop = () => {
-      if (Ripples.ripples.length > 0) {
-        Renderer.clearOverlay();
-        Ripples.update(Renderer.overlayCtx);
-        requestAnimationFrame(rippleLoop);
-      }
-    };
-    rippleLoop();
-
-    // Start idle breathing after 2 seconds
-    state.idleTimer = setTimeout(() => {
-      if (state.isComplete && !state.isPlaying) {
-        IdleAnim.start();
-      }
-    }, 2000);
   },
 
   updatePlayButton() {
@@ -1213,24 +1536,18 @@ const Animator = {
     }
   },
 
-  // Fast synchronous redraw for live slider feedback.
-  // Uses an adaptive step (max 4000 segments) so high-loop-count curves
-  // stay responsive while dragging. Does NOT clear the layers canvas.
+  // Instant full-curve draw — used only for slider drag preview and resize recovery
   livePreview() {
-    // On the first call of each drag session: capture an onion ghost of the
-    // current (complete) curve before it gets replaced by the new preview.
     if (state.onionSkin && !state.onionCaptured && state.isComplete) {
       state.onionCaptured = true;
       Renderer.ghostLayer(0.18);
     }
-    if (state.animId) { cancelAnimationFrame(state.animId); state.animId = null; }
     state.isPlaying = false;
     Renderer.clearCurve();
     Renderer.clearGlow();
     Renderer.clearOverlay();
     PenTrail.clear();
-    IdleAnim.stop();
-    clearTimeout(state.idleTimer);
+    IdleAnim.reset();
 
     const R = Math.round(state.R), r = Math.round(state.r);
     const totalT = SpiroMath.totalT(R, r);
@@ -1241,18 +1558,20 @@ const Animator = {
     for (let t = 0; t < totalT; t += dt) {
       const pt = SpiroMath.point(state.mode, state.R, state.r, state.d, t, state.is3D, state.h, state.k);
       if (prev) {
-        const hue = state.hueStart + (t / totalT) * state.hueSweep;
-        Renderer.drawSegment(prev, pt, `hsl(${hue % 360}, 90%, 60%)`);
+        const progress = t / totalT;
+        const hue = state.hueStart + progress * state.hueSweep;
+        Renderer.drawSegment(prev, pt, curveColor(hue), progress);
       }
       prev = pt;
     }
     if (prev) {
       const finalPt = SpiroMath.point(state.mode, state.R, state.r, state.d, totalT, state.is3D, state.h, state.k);
-      Renderer.drawSegment(prev, finalPt, `hsl(${(state.hueStart + state.hueSweep) % 360}, 90%, 60%)`);
+      Renderer.drawSegment(prev, finalPt, curveColor(state.hueStart + state.hueSweep), 1);
       state.prevPoint = finalPt;
     }
     state.currentT = totalT;
     state.isComplete = true;
+    this.idleAge = 0;
     if (state.showGlow) {
       const ctx = Renderer.glowCtx;
       ctx.setTransform(Renderer.dpr, 0, 0, Renderer.dpr, 0, 0);
@@ -1266,6 +1585,37 @@ const Animator = {
     }
     this.updatePlayButton();
     MathPanel.update();
+    Annotations.draw(Renderer.overlayCtx);
+  },
+
+  // Synchronous full redraw (for resize, pinch zoom, 3D orbit idle redraw)
+  _redrawComplete() {
+    Renderer.clearCurve();
+    Renderer.clearGlow();
+    const R = Math.round(state.R), r = Math.round(state.r);
+    const totalT = state.totalT;
+    const dt = Math.max(0.02, totalT / 4000);
+    let prev = null;
+    for (let t = 0; t <= totalT; t += dt) {
+      const pt = SpiroMath.point(state.mode, state.R, state.r, state.d, t, state.is3D, state.h, state.k);
+      if (prev) {
+        const progress = t / totalT;
+        const hue = state.hueStart + progress * state.hueSweep;
+        Renderer.drawSegment(prev, pt, curveColor(hue), progress);
+      }
+      prev = pt;
+    }
+    if (state.showGlow) {
+      const ctx = Renderer.glowCtx;
+      ctx.setTransform(Renderer.dpr, 0, 0, Renderer.dpr, 0, 0);
+      ctx.filter = 'blur(8px)';
+      ctx.globalCompositeOperation = 'lighter';
+      ctx.globalAlpha = 0.35;
+      ctx.drawImage(Renderer.curveCanvas, 0, 0, Renderer.width, Renderer.height);
+      ctx.filter = 'none';
+      ctx.globalCompositeOperation = 'source-over';
+      ctx.globalAlpha = 1;
+    }
   },
 
   drawInstant() {
@@ -1280,16 +1630,16 @@ const Animator = {
       if (prev) {
         const progress = t / totalT;
         const hue = state.hueStart + progress * state.hueSweep;
-        Renderer.drawSegment(prev, pt, `hsl(${hue % 360}, 90%, 60%)`);
+        Renderer.drawSegment(prev, pt, curveColor(hue), progress);
       }
       prev = pt; t += dt;
     }
     const finalPt = SpiroMath.point(state.mode, state.R, state.r, state.d, totalT, state.is3D, state.h, state.k);
-    if (prev) Renderer.drawSegment(prev, finalPt, `hsl(${(state.hueStart + state.hueSweep) % 360}, 90%, 60%)`);
+    if (prev) Renderer.drawSegment(prev, finalPt, curveColor(state.hueStart + state.hueSweep), 1);
     state.currentT = totalT;
     state.prevPoint = finalPt;
     state.isComplete = true;
-    // Update glow for instant draw
+    this.idleAge = 0;
     if (state.showGlow) {
       const ctx = Renderer.glowCtx;
       ctx.setTransform(Renderer.dpr, 0, 0, Renderer.dpr, 0, 0);
@@ -1459,6 +1809,7 @@ function loadPreset(index) {
   updateAllSliderUI();
   document.querySelectorAll('.curve-mode-btn').forEach(btn => btn.classList.toggle('active', btn.dataset.mode === p.mode));
   Animator.restart();
+  History.push();
 }
 
 function updateAllSliderUI() {
@@ -1515,6 +1866,7 @@ function doShuffle() {
       state.isShuffling = false;
       document.querySelectorAll('.curve-mode-btn').forEach(btn => btn.classList.toggle('active', btn.dataset.mode === state.mode));
       Animator.restart();
+      History.push();
     }
   }, 80);
 }
@@ -1548,21 +1900,20 @@ function wireCanvasTouch() {
       IdleAnim.stop();
       clearTimeout(state.idleTimer);
 
-      // Ripple!
+      // Ripple + hue shift toward tap point
+      const tapAngle = ((Math.atan2(dy, dx) / Math.PI) + 1) * 180; // 0-360 based on position
       const hue = state.hueStart + ((state.currentT / (state.totalT || 1)) * state.hueSweep);
-      Ripples.add(t.clientX, t.clientY, hue);
+      Ripples.add(t.clientX, t.clientY, tapAngle);
 
-      // If not playing and not in 3D, start a ripple redraw loop
-      if (!state.isPlaying && !state.is3D) {
-        const ripLoop = () => {
-          if (Ripples.ripples.length > 0) {
-            Renderer.clearOverlay();
-            Ripples.update(Renderer.overlayCtx);
-            requestAnimationFrame(ripLoop);
-          }
-        };
-        ripLoop();
+      // Nudge starting hue toward the tap angle (subtle — 8° per tap)
+      if (state.isComplete && !state.is3D) {
+        const diff = ((tapAngle - state.hueStart + 540) % 360) - 180;
+        state.hueStart = ((state.hueStart + diff * 0.15) + 360) % 360;
+        document.getElementById('slider-hue').value = Math.round(state.hueStart);
+        document.getElementById('val-hue').textContent = Math.round(state.hueStart) + '\u00b0';
+        Animator.livePreview();
       }
+
     } else if (e.touches.length === 2) {
       e.preventDefault();
       const t1 = e.touches[0], t2 = e.touches[1];
@@ -1594,21 +1945,37 @@ function wireCanvasTouch() {
         Camera.pitch += Camera.velPitch;
         lastTouchX = t.clientX;
         lastTouchY = t.clientY;
-        Camera.autoRotate = false;
-        // Redraw if complete
-        if (state.isComplete) Animator.drawInstant();
+        Camera.dragging = true;
       } else {
-        // 2D: drag to change d
+        // 2D: expressive drag — radial distance controls d, angle controls r
         const dist = Math.hypot(dx, dy);
-        const maxExt = SpiroMath.maxExtent(state.mode, state.R, state.r, state.d);
-        const newD = Math.max(1, Math.min(195, (dist / state.scale)));
+        const deltaX = t.clientX - lastTouchX;
+        const deltaY = t.clientY - lastTouchY;
+
+        // Radial component (toward/away from center) → d
+        const radialVec = dist > 10 ? { x: dx / dist, y: dy / dist } : { x: 0, y: 0 };
+        const radialDelta = deltaX * radialVec.x + deltaY * radialVec.y;
+        // Tangential component (perpendicular) → r
+        const tangentialDelta = -deltaX * radialVec.y + deltaY * radialVec.x;
+
+        const newD = Math.max(1, Math.min(195, state.d + radialDelta * 0.5));
         state.d = Math.round(newD);
         document.getElementById('slider-d').value = state.d;
         document.getElementById('val-d').textContent = state.d;
 
+        if (Math.abs(tangentialDelta) > 0.5 && !state.symmetryLock) {
+          const newR = Math.max(3, Math.min(195, state.r + tangentialDelta * 0.3));
+          state.r = Math.round(newR);
+          document.getElementById('slider-r').value = state.r;
+          document.getElementById('val-r').textContent = state.r;
+        }
+
+        lastTouchX = t.clientX;
+        lastTouchY = t.clientY;
+
         // Soft reset — morphing effect
         if (state.isPlaying || state.isComplete) {
-          Animator.softReset();
+          Animator.livePreview();
         }
       }
     } else if (e.touches.length === 2 && twoFingerStart) {
@@ -1619,42 +1986,50 @@ function wireCanvasTouch() {
       state.scale = twoFingerStart.scale * (dist / twoFingerStart.dist);
       state.offsetX = twoFingerStart.offX + (mid.x - twoFingerStart.midX);
       state.offsetY = twoFingerStart.offY + (mid.y - twoFingerStart.midY);
-      if (state.isComplete || !state.isPlaying) Animator.drawInstant();
+      // Redraw with new scale/offset (2D needs explicit redraw, 3D handled by loop)
+      if (!state.is3D && (state.isComplete || !state.isPlaying)) Animator.livePreview();
     }
   }, { passive: false });
 
   canvas.addEventListener('touchend', (e) => {
+    if (isDragging && !state.is3D) {
+      // Restart animated drawing after drag morph
+      Animator.restart();
+      updateSymmetryInfo();
+    }
     isDragging = false;
     if (e.touches.length < 2) twoFingerStart = null;
-    if (state.is3D) Camera.autoRotate = true;
+    if (state.is3D) Camera.dragging = false;
   });
 
-  // Mouse click for ripples on desktop
+  // Mouse click for ripples + hue shift on desktop
   canvas.addEventListener('click', (e) => {
     if (e.target === canvas) {
-      const hue = state.hueStart + ((state.currentT / (state.totalT || 1)) * state.hueSweep);
-      Ripples.add(e.clientX, e.clientY, hue);
-      if (!state.isPlaying) {
-        const ripLoop = () => {
-          if (Ripples.ripples.length > 0) {
-            Renderer.clearOverlay();
-            Ripples.update(Renderer.overlayCtx);
-            requestAnimationFrame(ripLoop);
-          }
-        };
-        ripLoop();
+      const dx = e.clientX - Renderer.centerX;
+      const dy = e.clientY - Renderer.centerY;
+      const tapAngle = ((Math.atan2(dy, dx) / Math.PI) + 1) * 180;
+      Ripples.add(e.clientX, e.clientY, tapAngle);
+
+      // Nudge hue toward click angle
+      if (state.isComplete && !state.is3D) {
+        const diff = ((tapAngle - state.hueStart + 540) % 360) - 180;
+        state.hueStart = ((state.hueStart + diff * 0.15) + 360) % 360;
+        document.getElementById('slider-hue').value = Math.round(state.hueStart);
+        document.getElementById('val-hue').textContent = Math.round(state.hueStart) + '\u00b0';
+        Animator.livePreview();
       }
+
     }
   });
 
   // Mouse drag for 3D orbit
   let mouseDown = false;
   canvas.addEventListener('mousedown', (e) => {
+    mouseDown = true;
+    lastTouchX = e.clientX;
+    lastTouchY = e.clientY;
     if (state.is3D) {
-      mouseDown = true;
-      lastTouchX = e.clientX;
-      lastTouchY = e.clientY;
-      Camera.autoRotate = false;
+      Camera.dragging = true;
       IdleAnim.stop();
     }
   });
@@ -1668,12 +2043,11 @@ function wireCanvasTouch() {
       Camera.pitch += Camera.velPitch;
       lastTouchX = e.clientX;
       lastTouchY = e.clientY;
-      if (state.isComplete) Animator.drawInstant();
     }
   });
   window.addEventListener('mouseup', () => {
     mouseDown = false;
-    if (state.is3D) Camera.autoRotate = true;
+    if (state.is3D) Camera.dragging = false;
   });
 }
 
@@ -1808,6 +2182,72 @@ function shareURL() {
 // ===================================================================
 // SVG EXPORT
 // ===================================================================
+function exportPNG(scale) {
+  if (scale <= 1) {
+    // Standard: composite existing canvases
+    const c = document.createElement('canvas');
+    const dpr = Renderer.dpr;
+    c.width = Renderer.width * dpr; c.height = Renderer.height * dpr;
+    const ctx = c.getContext('2d');
+    ctx.fillStyle = state.bgColor;
+    ctx.fillRect(0, 0, c.width, c.height);
+    ctx.drawImage(Renderer.layersCanvas, 0, 0);
+    ctx.drawImage(Renderer.glowCanvas, 0, 0);
+    ctx.drawImage(Renderer.curveCanvas, 0, 0);
+    const link = document.createElement('a');
+    link.download = `spirograph-${Date.now()}.png`;
+    link.href = c.toDataURL('image/png');
+    link.click();
+  } else {
+    // High-res: re-render at higher resolution
+    const W = Renderer.width * scale;
+    const H = Renderer.height * scale;
+    const c = document.createElement('canvas');
+    c.width = W; c.height = H;
+    const ctx = c.getContext('2d');
+    ctx.fillStyle = state.bgColor;
+    ctx.fillRect(0, 0, W, H);
+
+    const R = Math.round(state.R), r = Math.round(state.r);
+    const totalT = SpiroMath.totalT(R, r);
+    const maxExt = SpiroMath.maxExtent(state.mode, R, r, state.d);
+    const s = (Math.min(W, H) * 0.35) / (maxExt || 1);
+    const cx = W / 2 + state.offsetX * scale;
+    const cy = H / 2 + state.offsetY * scale;
+
+    ctx.lineWidth = state.lineWidth * scale;
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+
+    const dt = 0.02;
+    let prev = null;
+    for (let t = 0; t <= totalT; t += dt) {
+      const pt = SpiroMath.point(state.mode, state.R, state.r, state.d, t, state.is3D, state.h, state.k);
+      if (prev) {
+        const hue = state.hueStart + (t / totalT) * state.hueSweep;
+        ctx.strokeStyle = curveColor(hue);
+        ctx.beginPath();
+        if (state.is3D) {
+          const sp = Camera.project(pt, s / scale, cx / scale, cy / scale, 0, 0);
+          const spPrev = Camera.project(prev, s / scale, cx / scale, cy / scale, 0, 0);
+          ctx.moveTo(spPrev.x * scale, spPrev.y * scale);
+          ctx.lineTo(sp.x * scale, sp.y * scale);
+        } else {
+          ctx.moveTo(cx + prev.x * s, cy - prev.y * s);
+          ctx.lineTo(cx + pt.x * s, cy - pt.y * s);
+        }
+        ctx.stroke();
+      }
+      prev = pt;
+    }
+
+    const link = document.createElement('a');
+    link.download = `spirograph-${scale}x-${Date.now()}.png`;
+    link.href = c.toDataURL('image/png');
+    link.click();
+  }
+}
+
 function exportSVG() {
   const W = Renderer.width, H = Renderer.height;
   const totalT = SpiroMath.totalT(Math.round(state.R), Math.round(state.r));
@@ -1834,12 +2274,12 @@ function exportSVG() {
   const lw = state.lineWidth.toFixed(1);
   const pathEls = Object.entries(colorPaths)
     .map(([hue, d]) =>
-      `  <path d="${d.trim()}" stroke="hsl(${hue},90%,60%)" stroke-width="${lw}" stroke-linecap="round" fill="none"/>`)
+      `  <path d="${d.trim()}" stroke="hsl(${hue},${state.saturation}%,${state.lightness}%)" stroke-width="${lw}" stroke-linecap="round" fill="none"/>`)
     .join('\n');
 
   const svg = `<?xml version="1.0" encoding="UTF-8"?>
 <svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}">
-  <rect width="${W}" height="${H}" fill="#07070d"/>
+  <rect width="${W}" height="${H}" fill="${state.bgColor}"/>
 ${pathEls}
 </svg>`;
 
@@ -1853,8 +2293,94 @@ ${pathEls}
 }
 
 // ===================================================================
+// SYMMETRY LOCK
+// ===================================================================
+// Given R and a target petal count n, find the best r that produces exactly n petals.
+// loopCount(R, r) = r / gcd(R, r). We want this to equal n.
+function findRForPetals(R, n) {
+  R = Math.round(R);
+  // r must satisfy: r / gcd(R, r) == n
+  // Brute-force search for the closest valid r in slider range [3..195]
+  let best = null, bestDist = Infinity;
+  for (let r = 3; r <= 195; r++) {
+    if (SpiroMath.loopCount(R, r) === n) {
+      const dist = Math.abs(r - state.r);
+      if (dist < bestDist) { bestDist = dist; best = r; }
+    }
+  }
+  return best;
+}
+
+function applySymmetryLock() {
+  if (!state.symmetryLock) return;
+  const r = findRForPetals(state.R, state.targetPetals);
+  if (r !== null) {
+    state.r = r;
+    document.getElementById('slider-r').value = r;
+    document.getElementById('val-r').textContent = r;
+  }
+  updateSymmetryInfo();
+}
+
+function updateSymmetryInfo() {
+  const info = document.getElementById('symmetry-info');
+  if (state.symmetryLock) {
+    const loops = SpiroMath.loopCount(Math.round(state.R), Math.round(state.r));
+    info.textContent = loops + '-fold';
+    info.style.color = 'var(--accent)';
+  } else {
+    const loops = SpiroMath.loopCount(Math.round(state.R), Math.round(state.r));
+    info.textContent = loops + ' petals';
+    info.style.color = 'var(--text-dim)';
+  }
+}
+
+// ===================================================================
 // UI WIRING
 // ===================================================================
+const COLOR_PALETTES = [
+  { name: 'Neon',   hue: 0,   sweep: 360, sat: 100, lit: 55 },
+  { name: 'Pastel', hue: 0,   sweep: 360, sat: 50,  lit: 75 },
+  { name: 'Mono',   hue: 220, sweep: 0,   sat: 15,  lit: 70 },
+  { name: 'Warm',   hue: 0,   sweep: 60,  sat: 90,  lit: 58 },
+  { name: 'Cool',   hue: 180, sweep: 120, sat: 80,  lit: 55 },
+  { name: 'Ocean',  hue: 160, sweep: 80,  sat: 85,  lit: 50 },
+  { name: 'Sunset', hue: 330, sweep: 90,  sat: 95,  lit: 55 },
+];
+
+function buildPaletteSwatches() {
+  const row = document.getElementById('palette-row');
+  row.innerHTML = '';
+  COLOR_PALETTES.forEach((p, i) => {
+    const swatch = document.createElement('div');
+    swatch.className = 'palette-swatch';
+    swatch.title = p.name;
+    // Render a tiny gradient
+    const stops = [];
+    for (let j = 0; j <= 4; j++) {
+      const h = (p.hue + (p.sweep * j / 4)) % 360;
+      stops.push(`hsl(${h}, ${p.sat}%, ${p.lit}%) ${j * 25}%`);
+    }
+    swatch.style.background = p.sweep > 0
+      ? `conic-gradient(${stops.join(', ')})`
+      : `hsl(${p.hue}, ${p.sat}%, ${p.lit}%)`;
+    swatch.addEventListener('click', () => {
+      state.hueStart = p.hue; state.hueSweep = p.sweep;
+      state.saturation = p.sat; state.lightness = p.lit;
+      updateAllSliderUI();
+      document.getElementById('slider-sat').value = p.sat;
+      document.getElementById('val-sat').textContent = p.sat + '%';
+      document.getElementById('slider-lit').value = p.lit;
+      document.getElementById('val-lit').textContent = p.lit + '%';
+      document.querySelectorAll('.palette-swatch').forEach(s => s.classList.remove('active'));
+      swatch.classList.add('active');
+      if (state.isComplete || !state.isPlaying) Animator.livePreview();
+      History.push();
+    });
+    row.appendChild(swatch);
+  });
+}
+
 function wireControls() {
   // isShapeParam — changes curve geometry: instant preview while dragging, animated restart on release
   // isColorParam — changes color only: live update with no restart at all
@@ -1866,9 +2392,11 @@ function wireControls() {
     { id: 'slider-h', val: 'val-h', key: 'h', fmt: v => v, isShapeParam: true },
     { id: 'slider-k', val: 'val-k', key: 'k', fmt: v => v, isShapeParam: true },
     { id: 'slider-speed', val: 'val-speed', key: 'speed', fmt: v => v },
-    { id: 'slider-width', val: 'val-width', key: 'lineWidth', fmt: v => v },
+    { id: 'slider-width', val: 'val-width', key: 'lineWidth', fmt: v => v, isColorParam: true },
     { id: 'slider-hue', val: 'val-hue', key: 'hueStart', fmt: v => v + '\u00b0', isColorParam: true },
     { id: 'slider-sweep', val: 'val-sweep', key: 'hueSweep', fmt: v => v + '\u00b0', isColorParam: true },
+    { id: 'slider-sat', val: 'val-sat', key: 'saturation', fmt: v => v + '%', isColorParam: true },
+    { id: 'slider-lit', val: 'val-lit', key: 'lightness', fmt: v => v + '%', isColorParam: true },
   ];
 
   paramSliders.forEach(({ id, val, key, fmt, isShapeParam, isColorParam }) => {
@@ -1880,9 +2408,16 @@ function wireControls() {
       display.textContent = fmt(v);
       IdleAnim.stop();
       clearTimeout(state.idleTimer);
-      if (isShapeParam && !state.isEvolving) {
+      if (state.isPlaying) {
+        // During animation: shape changes → soft reset (morph mid-draw)
+        // Color/style changes → picked up automatically by the animation loop
+        if (isShapeParam && !state.isEvolving) {
+          state.totalT = SpiroMath.totalT(Math.round(state.R), Math.round(state.r));
+          Renderer.computeScale();
+        }
+      } else if (isShapeParam && !state.isEvolving) {
         Animator.livePreview();
-      } else if (isColorParam && (state.isComplete || !state.isPlaying)) {
+      } else if (isColorParam) {
         Animator.livePreview();
       }
     });
@@ -1890,9 +2425,95 @@ function wireControls() {
     if (isShapeParam) {
       slider.addEventListener('change', () => {
         if (!state.isEvolving) Animator.restart();
+        History.push();
       });
     }
   });
+
+  // Tap-to-type on slider values — click a value to enter an exact number
+  paramSliders.forEach(({ id, val, key, fmt, isShapeParam, isColorParam }) => {
+    const display = document.getElementById(val);
+    const slider = document.getElementById(id);
+    display.addEventListener('click', (e) => {
+      e.stopPropagation();
+      if (display.querySelector('input')) return; // already editing
+      const current = state[key];
+      const input = document.createElement('input');
+      input.type = 'number';
+      input.className = 'slider-inline-input';
+      input.value = typeof current === 'number' ? (Number.isInteger(current) ? current : current.toFixed(1)) : current;
+      input.min = slider.min;
+      input.max = slider.max;
+      input.step = slider.step;
+      display.textContent = '';
+      display.appendChild(input);
+      input.focus();
+      input.select();
+      const commit = () => {
+        let v = parseFloat(input.value);
+        if (isNaN(v)) v = current;
+        v = Math.max(parseFloat(slider.min), Math.min(parseFloat(slider.max), v));
+        state[key] = v;
+        slider.value = v;
+        display.textContent = fmt(v);
+        if (isShapeParam) {
+          if (state.symmetryLock && key === 'R') applySymmetryLock();
+          Animator.restart();
+          updateSymmetryInfo();
+        } else if (isColorParam) {
+          if (state.isComplete || !state.isPlaying) Animator.livePreview();
+        }
+      };
+      input.addEventListener('blur', commit);
+      input.addEventListener('keydown', (e2) => {
+        if (e2.key === 'Enter') { e2.preventDefault(); input.blur(); }
+        if (e2.key === 'Escape') { display.textContent = fmt(current); }
+      });
+    });
+  });
+
+  // Apply symmetry lock when R changes, update minimap
+  document.getElementById('slider-R').addEventListener('input', () => {
+    if (state.symmetryLock) applySymmetryLock();
+    updateSymmetryInfo();
+
+  });
+  document.getElementById('slider-r').addEventListener('input', () => {
+    updateSymmetryInfo();
+
+  });
+
+  // Symmetry lock toggle
+  document.getElementById('btn-symmetry').addEventListener('click', () => {
+    state.symmetryLock = !state.symmetryLock;
+    document.getElementById('btn-symmetry').classList.toggle('active', state.symmetryLock);
+    document.getElementById('petals-slider-group').style.display = state.symmetryLock ? '' : 'none';
+    document.getElementById('slider-r').disabled = state.symmetryLock;
+    if (state.symmetryLock) {
+      // Initialize petals from current curve
+      state.targetPetals = SpiroMath.loopCount(Math.round(state.R), Math.round(state.r));
+      const clamped = Math.max(2, Math.min(30, state.targetPetals));
+      state.targetPetals = clamped;
+      document.getElementById('slider-petals').value = clamped;
+      document.getElementById('val-petals').textContent = clamped;
+      applySymmetryLock();
+      Animator.livePreview();
+    }
+    updateSymmetryInfo();
+  });
+
+  // Petals slider
+  document.getElementById('slider-petals').addEventListener('input', () => {
+    state.targetPetals = parseInt(document.getElementById('slider-petals').value);
+    document.getElementById('val-petals').textContent = state.targetPetals;
+    applySymmetryLock();
+    Animator.livePreview();
+  });
+  document.getElementById('slider-petals').addEventListener('change', () => {
+    if (!state.isEvolving) Animator.restart();
+  });
+
+  updateSymmetryInfo();
 
   // Curve mode toggle (hypo/epi only — scoped to .curve-mode-btn to avoid touching 2D/3D buttons)
   document.querySelectorAll('.curve-mode-btn').forEach(btn => {
@@ -1900,6 +2521,7 @@ function wireControls() {
       document.querySelectorAll('.curve-mode-btn').forEach(b => b.classList.remove('active'));
       btn.classList.add('active');
       state.mode = btn.dataset.mode;
+      if (state.symmetryLock) applySymmetryLock();
       Animator.softReset();
     });
   });
@@ -1945,9 +2567,49 @@ function wireControls() {
     });
   });
 
+  // Guide geometry opacity
+  document.getElementById('slider-fx-opacity').addEventListener('input', () => {
+    state.fxOpacity = parseFloat(document.getElementById('slider-fx-opacity').value);
+    document.getElementById('val-fx-opacity').textContent = Math.round(state.fxOpacity) + '%';
+  });
+
+  // Trail mode
+  document.getElementById('btn-trail').addEventListener('click', () => {
+    state.trailMode = !state.trailMode;
+    document.getElementById('btn-trail').classList.toggle('active', state.trailMode);
+    document.getElementById('group-trail').style.display = state.trailMode ? '' : 'none';
+    // If trail just turned on and curve is complete, restart the draw
+    if (state.trailMode && state.isComplete) {
+      Animator.restart();
+    }
+  });
+  document.getElementById('slider-trail').addEventListener('input', () => {
+    state.trailLength = parseFloat(document.getElementById('slider-trail').value);
+    document.getElementById('val-trail').textContent = Math.round(state.trailLength) + '%';
+  });
+
+  // Stroke mode toggle
+  document.querySelectorAll('.stroke-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.stroke-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      state.strokeMode = btn.dataset.stroke;
+      if (state.isComplete || !state.isPlaying) Animator.livePreview();
+    });
+  });
+
+  // Background color
+  document.getElementById('bg-color').addEventListener('input', (e) => {
+    state.bgColor = e.target.value;
+    document.body.style.background = state.bgColor;
+    document.documentElement.style.setProperty('--bg', state.bgColor);
+    if (state.isComplete) Animator.livePreview();
+  });
+
   // Action buttons
   document.getElementById('btn-play').addEventListener('click', () => Animator.toggle());
   document.getElementById('btn-clear').addEventListener('click', () => {
+    History.push(); // save before clearing so undo can restore
     Animator.reset();
     Renderer.clearLayers();
     state.layerCount = 0;
@@ -1960,27 +2622,41 @@ function wireControls() {
     state.showGlow = state.showFX;
     document.getElementById('btn-fx').classList.toggle('active', state.showFX);
     if (!state.showFX) { Renderer.clearOverlay(); Renderer.clearGlow(); }
-    else if (state.isComplete) Animator.drawInstant();
+    else if (state.isComplete) Animator.livePreview();
   });
 
   document.getElementById('btn-save').addEventListener('click', () => {
-    // Composite all canvases
-    const c = document.createElement('canvas');
-    const dpr = Renderer.dpr;
-    c.width = Renderer.width * dpr; c.height = Renderer.height * dpr;
-    const ctx = c.getContext('2d');
-    ctx.fillStyle = '#07070d';
-    ctx.fillRect(0, 0, c.width, c.height);
-    ctx.drawImage(Renderer.layersCanvas, 0, 0);
-    ctx.drawImage(Renderer.glowCanvas, 0, 0);
-    ctx.drawImage(Renderer.curveCanvas, 0, 0);
-    const link = document.createElement('a');
-    link.download = `spirograph-${Date.now()}.png`;
-    link.href = c.toDataURL('image/png');
-    link.click();
+    exportPNG(1);
+  });
+
+  // Long-press save for high-res export
+  let saveTimer = null;
+  const saveBtn = document.getElementById('btn-save');
+  saveBtn.addEventListener('mousedown', () => {
+    saveTimer = setTimeout(() => { saveTimer = 'fired'; exportPNG(4); }, 600);
+  });
+  saveBtn.addEventListener('mouseup', () => {
+    if (saveTimer && saveTimer !== 'fired') { clearTimeout(saveTimer); }
+    saveTimer = null;
+  });
+  saveBtn.addEventListener('touchstart', (e) => {
+    saveTimer = setTimeout(() => { saveTimer = 'fired'; e.preventDefault(); exportPNG(4); }, 600);
+  }, { passive: false });
+  saveBtn.addEventListener('touchend', () => {
+    if (saveTimer && saveTimer !== 'fired') { clearTimeout(saveTimer); }
+    saveTimer = null;
   });
 
   document.getElementById('btn-svg').addEventListener('click', exportSVG);
+
+  document.getElementById('btn-annotate').addEventListener('click', () => {
+    state.showAnnotations = !state.showAnnotations;
+    document.getElementById('btn-annotate').classList.toggle('active', state.showAnnotations);
+    if (state.isComplete) {
+      Renderer.clearOverlay();
+      Annotations.draw(Renderer.overlayCtx);
+    }
+  });
 
   document.getElementById('btn-onion').addEventListener('click', () => {
     state.onionSkin = !state.onionSkin;
@@ -2001,6 +2677,7 @@ function wireControls() {
     document.getElementById('val-hue').textContent = Math.round(state.hueStart) + '\u00b0';
     Animator.reset();
     Animator.start();
+    History.push();
   });
 
   document.getElementById('btn-save-preset').addEventListener('click', saveCustomPreset);
@@ -2012,25 +2689,80 @@ function wireControls() {
 
   // Panel toggles
   document.getElementById('controls-toggle').addEventListener('click', () => {
-    document.getElementById('controls-panel').classList.toggle('collapsed');
+    const panel = document.getElementById('controls-panel');
+    panel.classList.toggle('collapsed');
+    document.getElementById('controls-toggle').setAttribute('aria-expanded', !panel.classList.contains('collapsed'));
   });
   document.getElementById('math-toggle').addEventListener('click', () => {
-    document.getElementById('math-panel').classList.toggle('collapsed');
+    const panel = document.getElementById('math-panel');
+    panel.classList.toggle('collapsed');
+    document.getElementById('math-toggle').setAttribute('aria-expanded', !panel.classList.contains('collapsed'));
     MathPanel.update();
+  });
+
+  // Keyboard shortcuts (desktop)
+  document.addEventListener('keydown', (e) => {
+    // Ignore when typing in an input
+    if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+
+    const mod = e.metaKey || e.ctrlKey;
+
+    if (mod && e.key === 'z' && !e.shiftKey) { e.preventDefault(); History.undo(); return; }
+    if (mod && (e.key === 'y' || (e.key === 'z' && e.shiftKey))) { e.preventDefault(); History.redo(); return; }
+    if (mod && e.key === 's') { e.preventDefault(); exportPNG(1); return; }
+    if (mod && e.shiftKey && e.key === 'S') { e.preventDefault(); exportPNG(4); return; }
+
+    switch (e.key) {
+      case ' ': e.preventDefault(); Animator.toggle(); break;
+      case 'r': case 'R': doShuffle(); break;
+      case 'e': case 'E': Evolve.toggle(); break;
+      case 'l': case 'L': document.getElementById('btn-layer').click(); break;
+      case 'a': case 'A': document.getElementById('btn-annotate').click(); break;
+      case 'f': case 'F': document.getElementById('btn-fx').click(); break;
+      case 'm': case 'M': document.getElementById('math-toggle').click(); break;
+      case 'Escape':
+        document.getElementById('controls-panel').classList.toggle('collapsed');
+        document.getElementById('controls-toggle').setAttribute('aria-expanded',
+          !document.getElementById('controls-panel').classList.contains('collapsed'));
+        break;
+      case '1': case '2': case '3': case '4': case '5':
+      case '6': case '7': case '8': case '9':
+        const idx = parseInt(e.key) - 1;
+        if (idx < PRESETS.length) loadPreset(idx);
+        break;
+      case '0':
+        if (PRESETS.length >= 10) loadPreset(9);
+        break;
+    }
   });
 
   // Shake to randomize
   if (window.DeviceMotionEvent) {
     let lastShake = 0;
-    window.addEventListener('devicemotion', (e) => {
-      const a = e.accelerationIncludingGravity;
-      if (!a) return;
-      const force = Math.sqrt(a.x * a.x + a.y * a.y + a.z * a.z);
-      if (force > 25 && Date.now() - lastShake > 2000) {
-        lastShake = Date.now();
-        doShuffle();
-      }
-    });
+    const registerShakeListener = () => {
+      window.addEventListener('devicemotion', (e) => {
+        const a = e.accelerationIncludingGravity;
+        if (!a) return;
+        const force = Math.sqrt(a.x * a.x + a.y * a.y + a.z * a.z);
+        if (force > 25 && Date.now() - lastShake > 2000) {
+          lastShake = Date.now();
+          doShuffle();
+        }
+      });
+    };
+    // iOS 13+ requires explicit permission for DeviceMotionEvent
+    if (typeof DeviceMotionEvent.requestPermission === 'function') {
+      // Request on first user interaction
+      const requestMotion = () => {
+        DeviceMotionEvent.requestPermission()
+          .then(response => { if (response === 'granted') registerShakeListener(); })
+          .catch(() => {});
+        document.removeEventListener('touchstart', requestMotion);
+      };
+      document.addEventListener('touchstart', requestMotion, { once: true });
+    } else {
+      registerShakeListener();
+    }
   }
 }
 
@@ -2052,33 +2784,74 @@ function handleResize() {
   clearTimeout(resizeTimer);
   resizeTimer = setTimeout(() => {
     Renderer.resize();
-    if (state.currentT > 0) Animator.drawInstant();
+    if (state.isComplete) Animator.livePreview();
   }, 150);
 }
 
 // ===================================================================
-// 3D AUTO-ROTATE LOOP (runs when drawing is complete in 3D mode)
+// ATTRACT MODE — cycle stunning presets before first interaction
 // ===================================================================
-function start3DIdleRotation() {
-  if (!state.is3D || !state.isComplete) return;
-  const loop = () => {
-    if (!state.isComplete || state.isPlaying || !state.is3D) return;
-    Camera.update();
+const AttractMode = {
+  active: false,
+  presetSequence: [3, 11, 10, 6], // Pentaflower, Bloom, Cosmos, Nephroid
+  currentIndex: 0,
+  cycleTimer: null,
+  morphTimer: null,
+
+  start() {
+    this.active = true;
+    this.currentIndex = 0;
+    this.showPreset(this.presetSequence[0]);
+    // Cycle every 4 seconds
+    this.cycleTimer = setInterval(() => {
+      this.currentIndex = (this.currentIndex + 1) % this.presetSequence.length;
+      this.crossfade(this.presetSequence[this.currentIndex]);
+    }, 4000);
+  },
+
+  showPreset(idx) {
+    const p = PRESETS[idx];
+    state.R = p.R; state.r = p.r; state.d = p.d;
+    state.mode = p.mode; state.hueStart = p.hue; state.hueSweep = p.sweep;
+    state.totalT = SpiroMath.totalT(p.R, p.r);
+    Renderer.computeScale();
     Animator.drawInstant();
-    requestAnimationFrame(loop);
-  };
-  loop();
-}
+  },
+
+  crossfade(idx) {
+    if (!this.active) return;
+    // Fade current curve into layers, draw new one
+    Renderer.fadeCurve(0.6);
+    if (state.showGlow) {
+      const ctx = Renderer.glowCtx;
+      ctx.setTransform(Renderer.dpr, 0, 0, Renderer.dpr, 0, 0);
+      ctx.fillStyle = hexToRgba(state.bgColor, 0.6);
+      ctx.fillRect(0, 0, Renderer.width, Renderer.height);
+    }
+    this.showPreset(idx);
+  },
+
+  stop() {
+    if (!this.active) return;
+    this.active = false;
+    clearInterval(this.cycleTimer);
+    this.cycleTimer = null;
+  }
+};
 
 // ===================================================================
 // INIT
 // ===================================================================
 function init() {
   Renderer.init();
+  Animator.beginLoop(); // Start the unified loop — never stops
   wireControls();
   wireCanvasTouch();
   buildPresetGallery();
   buildMyPresetGallery();
+  buildPaletteSwatches();
+
+  const hasHash = window.location.hash.length > 1;
   loadStateFromHash();   // apply any shared URL params before first draw
   MathPanel.update();
   window.addEventListener('resize', handleResize);
@@ -2090,10 +2863,81 @@ function init() {
   document.querySelectorAll('.dim-btn').forEach(b =>
     b.classList.toggle('active', b.dataset.dim === (state.is3D ? '3d' : '2d')));
   document.getElementById('controls-panel').classList.toggle('show-3d', state.is3D);
-  Animator.restart();
+
+  History.push(); // save initial state
+
+  if (hasHash) {
+    // Shared URL — show immediately with panel open
+    Animator.restart();
+  } else {
+    // Fresh visit — randomize starting parameters
+    const randR = 60 + Math.floor(Math.random() * 100);
+    let randR2, loops;
+    do {
+      randR2 = 10 + Math.floor(Math.random() * (randR - 15));
+      loops = SpiroMath.loopCount(randR, randR2);
+    } while (loops > 15);
+    state.R = randR; state.r = randR2;
+    state.d = Math.floor(state.r * (0.3 + Math.random() * 0.7));
+    state.mode = Math.random() > 0.5 ? 'epi' : 'hypo';
+    state.h = 20 + Math.floor(Math.random() * 80);
+    state.k = 1 + Math.floor(Math.random() * 12);
+    state.hueStart = Math.floor(Math.random() * 360);
+    state.hueSweep = 180 + Math.floor(Math.random() * 540);
+    updateAllSliderUI();
+    document.querySelectorAll('.curve-mode-btn').forEach(b =>
+      b.classList.toggle('active', b.dataset.mode === state.mode));
+
+    updateSymmetryInfo();
+
+    // Immersive start — collapse panel, start attract mode
+    document.getElementById('controls-panel').classList.add('collapsed');
+    document.getElementById('controls-toggle').setAttribute('aria-expanded', 'false');
+
+    AttractMode.start();
+
+    // Pulse the ☰ button after 3s to hint at controls
+    setTimeout(() => {
+      if (AttractMode.active) {
+        document.getElementById('controls-toggle').classList.add('hint-pulse');
+      }
+    }, 3000);
+
+    // On first interaction anywhere, exit attract mode and open panel
+    const exitAttract = () => {
+      if (!AttractMode.active) return;
+      AttractMode.stop();
+      document.getElementById('controls-toggle').classList.remove('hint-pulse');
+      // Keep the current curve — just sync UI to whatever state attract left
+      updateAllSliderUI();
+      document.querySelectorAll('.curve-mode-btn').forEach(b =>
+        b.classList.toggle('active', b.dataset.mode === state.mode));
+      document.querySelectorAll('.dim-btn').forEach(b =>
+        b.classList.toggle('active', b.dataset.dim === (state.is3D ? '3d' : '2d')));
+      updateSymmetryInfo();
+      Animator.restart();
+      History.push();
+      // Open panel after a beat
+      setTimeout(() => {
+        document.getElementById('controls-panel').classList.remove('collapsed');
+        document.getElementById('controls-toggle').setAttribute('aria-expanded', 'true');
+      }, 300);
+      document.removeEventListener('touchstart', exitAttract);
+      document.removeEventListener('mousedown', exitAttract);
+      document.removeEventListener('keydown', exitAttract);
+    };
+    document.addEventListener('touchstart', exitAttract, { once: true });
+    document.addEventListener('mousedown', exitAttract, { once: true });
+    document.addEventListener('keydown', exitAttract, { once: true });
+  }
 }
 
 document.addEventListener('DOMContentLoaded', init);
+
+// Register service worker for offline PWA support
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('./sw.js').catch(() => {});
+}
 </script>
 </body>
 </html>
