@@ -1749,6 +1749,63 @@ function buildMyPresetGallery() {
 }
 
 // ===================================================================
+// URL SHARING — encode/decode state in the location hash
+// ===================================================================
+function encodeStateToHash() {
+  const p = new URLSearchParams({
+    R:    Math.round(state.R),
+    r:    Math.round(state.r),
+    d:    Math.round(state.d),
+    m:    state.mode,
+    hue:  Math.round(state.hueStart),
+    sw:   Math.round(state.hueSweep),
+    lw:   state.lineWidth,
+    '3d': state.is3D ? 1 : 0,
+    h:    state.h,
+    k:    state.k
+  });
+  return '#' + p.toString();
+}
+
+function loadStateFromHash() {
+  if (!location.hash || location.hash.length < 3) return;
+  try {
+    const p = new URLSearchParams(location.hash.slice(1));
+    if (p.has('R'))   state.R   = parseFloat(p.get('R'));
+    if (p.has('r'))   state.r   = parseFloat(p.get('r'));
+    if (p.has('d'))   state.d   = parseFloat(p.get('d'));
+    if (p.has('m'))   state.mode = p.get('m') === 'epi' ? 'epi' : 'hypo';
+    if (p.has('hue')) state.hueStart  = parseFloat(p.get('hue'));
+    if (p.has('sw'))  state.hueSweep  = parseFloat(p.get('sw'));
+    if (p.has('lw'))  state.lineWidth = parseFloat(p.get('lw'));
+    if (p.has('3d'))  state.is3D = p.get('3d') === '1';
+    if (p.has('h'))   state.h = parseFloat(p.get('h'));
+    if (p.has('k'))   state.k = parseFloat(p.get('k'));
+  } catch { return; }
+}
+
+function shareURL() {
+  const hash = encodeStateToHash();
+  history.replaceState(null, '', hash);
+  const url = location.href;
+  // Copy to clipboard — modern API with execCommand fallback
+  const copy = () => {
+    const ta = document.createElement('textarea');
+    ta.value = url; ta.style.position = 'fixed'; ta.style.opacity = '0';
+    document.body.appendChild(ta); ta.select();
+    document.execCommand('copy'); document.body.removeChild(ta);
+  };
+  (navigator.clipboard ? navigator.clipboard.writeText(url).catch(copy) : Promise.resolve(copy()));
+  // Brief "Copied!" feedback on the button
+  const btn = document.getElementById('btn-share');
+  const label = btn.querySelector('.btn-label');
+  const prev = label.textContent;
+  label.textContent = 'Copied!';
+  btn.classList.add('active');
+  setTimeout(() => { label.textContent = prev; btn.classList.remove('active'); }, 1500);
+}
+
+// ===================================================================
 // SVG EXPORT
 // ===================================================================
 function exportSVG() {
@@ -1947,6 +2004,7 @@ function wireControls() {
   });
 
   document.getElementById('btn-save-preset').addEventListener('click', saveCustomPreset);
+  document.getElementById('btn-share').addEventListener('click', shareURL);
   document.getElementById('btn-rec').addEventListener('click', () => Recorder.toggle());
 
   document.getElementById('btn-shuffle').addEventListener('click', doShuffle);
@@ -2021,9 +2079,17 @@ function init() {
   wireCanvasTouch();
   buildPresetGallery();
   buildMyPresetGallery();
+  loadStateFromHash();   // apply any shared URL params before first draw
   MathPanel.update();
   window.addEventListener('resize', handleResize);
   window.addEventListener('orientationchange', handleResize);
+  // Sync UI to state after potential hash load
+  updateAllSliderUI();
+  document.querySelectorAll('.curve-mode-btn').forEach(b =>
+    b.classList.toggle('active', b.dataset.mode === state.mode));
+  document.querySelectorAll('.dim-btn').forEach(b =>
+    b.classList.toggle('active', b.dataset.dim === (state.is3D ? '3d' : '2d')));
+  document.getElementById('controls-panel').classList.toggle('show-3d', state.is3D);
   Animator.restart();
 }
 
