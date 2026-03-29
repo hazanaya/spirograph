@@ -274,7 +274,7 @@ input[type="range"]:active::-webkit-slider-thumb { transform: scale(1.2); box-sh
 
 <div id="flash-overlay"></div>
 
-<div id="controls-panel" class="panel" role="region" aria-label="Controls">
+<div id="controls-panel" class="panel show-3d" role="region" aria-label="Controls">
   <div class="panel-header">Parameters</div>
   <div class="panel-section">
     <div class="slider-group param-R">
@@ -318,16 +318,16 @@ input[type="range"]:active::-webkit-slider-thumb { transform: scale(1.2); box-sh
       <button class="mode-btn curve-mode-btn" data-mode="epi">Epitrochoid</button>
     </div>
     <div class="mode-toggle" style="margin-top:8px">
-      <button class="mode-btn active dim-btn" data-dim="2d">2D</button>
-      <button class="mode-btn dim-btn" data-dim="3d">3D</button>
+      <button class="mode-btn dim-btn" data-dim="2d">2D</button>
+      <button class="mode-btn active dim-btn" data-dim="3d">3D</button>
     </div>
   </div>
 
   <div class="panel-header">Drawing</div>
   <div class="panel-section">
     <div class="slider-group">
-      <div class="slider-label"><span class="name">Speed</span><span class="value" id="val-speed">0.2</span></div>
-      <input type="range" id="slider-speed" min="0.05" max="10" value="0.2" step="0.05" aria-label="Drawing speed">
+      <div class="slider-label"><span class="name">Speed</span><span class="value" id="val-speed">0.1</span></div>
+      <input type="range" id="slider-speed" min="0" max="100" value="50" step="1" aria-label="Drawing speed">
     </div>
     <div class="slider-group">
       <div class="slider-label"><span class="name">Line Width</span><span class="value" id="val-width">1.5</span></div>
@@ -339,9 +339,12 @@ input[type="range"]:active::-webkit-slider-thumb { transform: scale(1.2); box-sh
       <button class="mode-btn stroke-btn" data-stroke="dashed" style="font-size:11px">Dashed</button>
       <button class="mode-btn stroke-btn" data-stroke="tapered" style="font-size:11px">Taper</button>
     </div>
-    <div style="display:flex;align-items:center;gap:8px;margin-top:10px">
+    <div style="display:flex;align-items:center;gap:6px;margin-top:10px">
       <button class="action-btn" id="btn-trail" aria-label="Toggle trail mode" style="width:auto;padding:4px 10px;font-size:10px;height:auto;min-height:0">
         <span class="btn-icon" style="font-size:11px">&#8766;</span><span class="btn-label">Trail</span>
+      </button>
+      <button class="action-btn" id="btn-loop" aria-label="Toggle loop mode" style="width:auto;padding:4px 10px;font-size:10px;height:auto;min-height:0">
+        <span class="btn-icon" style="font-size:11px">&#8635;</span><span class="btn-label">Loop</span>
       </button>
     </div>
     <div class="slider-group" id="group-trail" style="display:none;margin-top:8px">
@@ -655,9 +658,9 @@ const Camera = {
 // ===================================================================
 const state = {
   R: 100, r: 63, d: 50,
-  mode: 'hypo', is3D: false,
+  mode: 'hypo', is3D: true,
   h: 40, k: 3,
-  speed: 0.2, lineWidth: 1.5,
+  speed: 0.1, lineWidth: 1.5,
   hueStart: 0, hueSweep: 360,
   showFX: true, showGlow: true, fxOpacity: 100,
   soundOn: false,
@@ -671,7 +674,8 @@ const state = {
   canvasDragging: false,
   onionSkin: false, onionCaptured: false,
   symmetryLock: false, targetPetals: 7,
-  trailMode: false, trailLength: 0.5,
+  trailMode: true, trailLength: 50,
+  loopMode: true, erasing: false, eraseT: 0,
   bgColor: '#07070d',
   saturation: 90, lightness: 60, strokeMode: 'solid',
   showAnnotations: false
@@ -756,10 +760,15 @@ const Renderer = {
 
     let lw = state.lineWidth;
     let alpha = 1;
-    if (state.is3D) {
+    if (state.is3D && !state.trailMode) {
       const avgDepth = ((a.depth || 0) + (b.depth || 0)) / 2;
       const norm = (avgDepth + 200) / 400;
       alpha = 0.3 + 0.7 * Math.max(0, Math.min(1, 1 - norm * 0.5));
+      lw = state.lineWidth * (0.5 + 1.5 * Math.max(0, Math.min(1, 1 - norm * 0.3)));
+    } else if (state.is3D) {
+      // Trail mode: only vary line width for depth, not alpha (prevents ghost halo)
+      const avgDepth = ((a.depth || 0) + (b.depth || 0)) / 2;
+      const norm = (avgDepth + 200) / 400;
       lw = state.lineWidth * (0.5 + 1.5 * Math.max(0, Math.min(1, 1 - norm * 0.3)));
     }
 
@@ -803,9 +812,17 @@ const Renderer = {
 
     const ctx = this.glowCtx;
     ctx.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);
-    // Fade existing glow slightly
-    ctx.fillStyle = hexToRgba(state.bgColor, 0.15);
-    ctx.fillRect(0, 0, this.width, this.height);
+
+    if (state.trailMode) {
+      // Trail mode: skip glow entirely — the trail is clean without it
+      this.clearGlow();
+      return;
+    } else {
+      // Normal mode: fade existing glow slightly for a bloom trail
+      ctx.fillStyle = hexToRgba(state.bgColor, 0.15);
+      ctx.fillRect(0, 0, this.width, this.height);
+    }
+
     // Composite curve onto glow with blur
     ctx.filter = 'blur(8px)';
     ctx.globalCompositeOperation = 'lighter';
@@ -824,23 +841,34 @@ const Renderer = {
     const cy = this.centerY + state.offsetY;
     const a = state.fxOpacity / 100; // 0–1 alpha multiplier
 
-    ctx.lineWidth = 1;
-    ctx.setLineDash([4, 4]);
+    ctx.lineWidth = 1 + a * 2;
 
-    // Fixed circle
-    ctx.beginPath();
-    ctx.arc(cx, cy, R * s, 0, Math.PI * 2);
-    ctx.strokeStyle = `rgba(255,255,255,${0.12 * a})`;
-    ctx.stroke();
+    // Helper: draw a projected circle (flat in XY plane, projected through camera in 3D)
+    const drawProjectedCircle = (centerPt, radius, color, segments) => {
+      ctx.beginPath();
+      ctx.strokeStyle = color;
+      for (let i = 0; i <= segments; i++) {
+        const angle = (2 * Math.PI * i) / segments;
+        const pt = {
+          x: centerPt.x + radius * Math.cos(angle),
+          y: centerPt.y + radius * Math.sin(angle),
+          z: centerPt.z || 0
+        };
+        const sp = this.toScreen(pt);
+        if (i === 0) ctx.moveTo(sp.x, sp.y);
+        else ctx.lineTo(sp.x, sp.y);
+      }
+      ctx.stroke();
+    };
 
+    // Fixed circle (centered at origin)
+    drawProjectedCircle({ x: 0, y: 0, z: 0 }, R, `rgba(255,255,255,${0.6 * a})`, 64);
+
+    // Rolling wheel circle
     const center = SpiroMath.innerCenter(mode, R, r, t);
-    const sc = this.toScreen(center);
+    drawProjectedCircle(center, r, `rgba(244, 114, 182, ${0.8 * a})`, 48);
 
-    ctx.beginPath();
-    ctx.arc(sc.x, sc.y, r * s, 0, Math.PI * 2);
-    ctx.strokeStyle = `rgba(244, 114, 182, ${0.25 * a})`;
-    ctx.stroke();
-    ctx.setLineDash([]);
+    const sc = this.toScreen(center);
 
     const pen = SpiroMath.point(mode, R, r, d, t, state.is3D, state.h, state.k);
     const sp = this.toScreen(pen);
@@ -848,13 +876,13 @@ const Renderer = {
     ctx.beginPath();
     ctx.moveTo(sc.x, sc.y);
     ctx.lineTo(sp.x, sp.y);
-    ctx.strokeStyle = `rgba(251, 191, 36, ${0.3 * a})`;
-    ctx.lineWidth = 1.5;
+    ctx.strokeStyle = `rgba(251, 191, 36, ${0.9 * a})`;
+    ctx.lineWidth = 2 + a;
     ctx.stroke();
 
     ctx.beginPath();
-    ctx.arc(sc.x, sc.y, 3, 0, Math.PI * 2);
-    ctx.fillStyle = `rgba(244, 114, 182, ${0.5 * a})`;
+    ctx.arc(sc.x, sc.y, 4, 0, Math.PI * 2);
+    ctx.fillStyle = `rgba(244, 114, 182, ${a})`;
     ctx.fill();
   },
 
@@ -1346,59 +1374,75 @@ const Animator = {
     if (state.isPlaying && !state.isComplete) {
       const dt = state.speed * 0.015;
       const totalT = state.isEvolving ? SpiroMath.totalT(Math.round(state.R), Math.round(state.r)) : state.totalT;
-      const R = state.isEvolving ? state.R : Math.round(state.R);
-      const r = state.isEvolving ? state.r : Math.round(state.r);
-      const d = state.d;
 
-      // Trail mode: fade canvas each frame so the line chases its tail
-      if (state.trailMode && state.isPlaying) {
-        const fadeAmount = 0.002 + (1 - state.trailLength / 100) * 0.04;
-        Renderer.fadeCurve(fadeAmount);
-        if (state.showGlow) {
-          const ctx = Renderer.glowCtx;
-          ctx.setTransform(Renderer.dpr, 0, 0, Renderer.dpr, 0, 0);
-          ctx.fillStyle = hexToRgba(state.bgColor, fadeAmount * 2);
-          ctx.fillRect(0, 0, Renderer.width, Renderer.height);
-        }
-      }
-
+      // Advance currentT (and eraseT in loop mode)
       for (let i = 0; i < this.stepsPerFrame; i++) {
         if (!state.isEvolving && state.currentT >= totalT) {
           if (state.trailMode) {
-            // Wrap around — the curve chases its tail forever
             state.currentT = 0;
-            state.prevPoint = null;
             continue;
           }
-          state.isComplete = true;
-          state.isPlaying = false;
-          this.idleAge = 0;
-          this.onComplete();
-          this.updatePlayButton();
-          break;
+          if (state.loopMode) {
+            if (!state.erasing) {
+              // Curve just completed — start erasing
+              state.erasing = true;
+              state.eraseT = 0;
+            }
+          } else {
+            state.isComplete = true;
+            state.isPlaying = false;
+            this.idleAge = 0;
+            this.onComplete();
+            this.updatePlayButton();
+            break;
+          }
         }
 
-        const nextT = state.isEvolving ? state.currentT + dt : Math.min(state.currentT + dt, totalT);
-        const pt = SpiroMath.point(state.mode, R, r, d, nextT, state.is3D, state.h, state.k);
-
-        if (state.prevPoint) {
-          const progress = totalT > 0 ? (nextT % totalT) / totalT : 0;
-          const hue = state.hueStart + progress * state.hueSweep;
-          Renderer.drawSegment(state.prevPoint, pt, curveColor(hue), progress);
-
-          const sp = Renderer.toScreen(pt);
-          PenTrail.addPoint(sp, hue);
-
-          const dist = Math.sqrt(pt.x * pt.x + pt.y * pt.y + (pt.z || 0) * (pt.z || 0));
-          Sound.update(dist, SpiroMath.maxExtent(state.mode, R, r, d), hue);
+        if (state.erasing) {
+          // Advance the erase head
+          state.eraseT = Math.min(state.eraseT + dt, state.totalT);
+          if (state.eraseT >= state.totalT) {
+            // Fully erased — restart drawing
+            state.erasing = false;
+            state.eraseT = 0;
+            state.currentT = 0;
+            state.prevPoint = null;
+          }
+        } else {
+          state.currentT = state.isEvolving
+            ? state.currentT + dt
+            : Math.min(state.currentT + dt, totalT);
+          if (state.isEvolving && state.currentT > totalT * 2) {
+            state.currentT = 0;
+          }
         }
+      }
 
-        state.prevPoint = pt;
-        state.currentT = nextT;
+      // Full redraw every frame (enables smooth 3D orbit during drawing)
+      if (!state.trailMode) {
+        const drawFrom = state.erasing ? state.eraseT : 0;
+        const drawTo = state.erasing ? state.totalT : state.currentT;
+        this._redrawUpTo(drawTo, drawFrom);
+      } else {
+        // Trail mode: draw only a window of the curve (no fading, no ghosts)
+        const totalT = state.totalT;
+        const trailWindow = totalT * (state.trailLength / 100);
+        const trailStart = Math.max(0, state.currentT - trailWindow);
+        // Render trail with alpha gradient (bright at head, fading at tail)
+        this._redrawTrailWindow(trailStart, state.currentT, trailWindow);
+      }
 
-        if (state.isEvolving && state.currentT > totalT * 2) {
-          state.currentT = 0;
-        }
+      // Pen trail + sound at current position
+      if (state.currentT > 0) {
+        const R = state.isEvolving ? state.R : Math.round(state.R);
+        const r = state.isEvolving ? state.r : Math.round(state.r);
+        const pt = SpiroMath.point(state.mode, R, r, state.d, state.currentT, state.is3D, state.h, state.k);
+        const sp = Renderer.toScreen(pt);
+        const progress = totalT > 0 ? (state.currentT % totalT) / totalT : 0;
+        const hue = state.hueStart + progress * state.hueSweep;
+        PenTrail.addPoint(sp, hue);
+        const dist = Math.sqrt(pt.x * pt.x + pt.y * pt.y + (pt.z || 0) * (pt.z || 0));
+        Sound.update(dist, SpiroMath.maxExtent(state.mode, R, r, state.d), hue);
       }
     }
 
@@ -1407,6 +1451,11 @@ const Animator = {
       this.idleAge++;
       if (this.idleAge > 120) { // ~2 seconds at 60fps
         IdleAnim.tick();
+      }
+      // 3D: continuously redraw completed curve as camera orbits
+      if (state.is3D) {
+        this._3dFrame = (this._3dFrame || 0) + 1;
+        if (this._3dFrame % 2 === 0) this._redrawComplete();
       }
     }
 
@@ -1418,15 +1467,24 @@ const Animator = {
     if (state.isPlaying) PenTrail.draw(Renderer.overlayCtx);
     Ripples.update(Renderer.overlayCtx);
     Annotations.draw(Renderer.overlayCtx);
-    Renderer.updateGlow();
-
-    // 6. 3D redraw when camera is orbiting and curve is complete (every 2nd frame for perf)
-    if (state.is3D && state.isComplete && !state.isPlaying) {
-      this._3dFrame = (this._3dFrame || 0) + 1;
-      if (this._3dFrame % 2 === 0) this._redrawComplete();
+    if (state.trailMode) {
+      // Glow + layers hidden (curve canvas is opaque, covers them)
+      Renderer.glowCanvas.style.visibility = 'hidden';
+      Renderer.layersCanvas.style.visibility = 'hidden';
+      // Overlay stays visible for guide geometry + ripples
+      Renderer.overlayCanvas.style.visibility = '';
+    } else {
+      Renderer.glowCanvas.style.visibility = '';
+      Renderer.layersCanvas.style.visibility = '';
+      Renderer.overlayCanvas.style.visibility = '';
+      Renderer.updateGlow();
     }
 
     if (state.isPlaying) MathPanel.updateProgress();
+
+    // Persist settings every 2 seconds
+    this._saveFrame = (this._saveFrame || 0) + 1;
+    if (this._saveFrame % 120 === 0) saveSettings();
 
     requestAnimationFrame(() => this._frame());
   },
@@ -1451,6 +1509,8 @@ const Animator = {
   // Morph: fade old curve and start drawing new one
   beginDraw() {
     Camera.dragging = false;
+    state.erasing = false;
+    state.eraseT = 0;
     if (state.onionSkin && !state.onionCaptured && state.isComplete) {
       state.onionCaptured = true;
       Renderer.ghostLayer(0.18);
@@ -1586,6 +1646,91 @@ const Animator = {
     this.updatePlayButton();
     MathPanel.update();
     Annotations.draw(Renderer.overlayCtx);
+  },
+
+  // Draw a windowed portion of the curve with alpha fade at the tail
+  _redrawTrailWindow(startT, endT, trailWindow) {
+    // Opaque fill instead of clearRect — prevents AA edge ghosts on transparent canvas
+    const cCtx = Renderer.curveCtx;
+    cCtx.save();
+    cCtx.setTransform(Renderer.dpr, 0, 0, Renderer.dpr, 0, 0);
+    cCtx.globalCompositeOperation = 'copy';
+    cCtx.fillStyle = state.bgColor;
+    cCtx.fillRect(0, 0, Renderer.width, Renderer.height);
+    cCtx.restore();
+    const totalT = state.totalT || 1;
+    const dt = Math.max(0.02, totalT / 4000);
+    let prev = null;
+    if (startT > 0) {
+      prev = SpiroMath.point(state.mode, state.R, state.r, state.d, startT, state.is3D, state.h, state.k);
+    }
+    for (let t = startT; t < endT; t += dt) {
+      const pt = SpiroMath.point(state.mode, state.R, state.r, state.d, t, state.is3D, state.h, state.k);
+      if (prev) {
+        const progress = totalT > 0 ? t / totalT : 0;
+        Renderer.drawSegment(prev, pt, curveColor(state.hueStart + progress * state.hueSweep), progress);
+      }
+      prev = pt;
+    }
+    // Glow: use the glow canvas as a scratch buffer, composite back onto curve
+    if (state.showGlow) {
+      const gCtx = Renderer.glowCtx;
+      // Clear glow canvas, draw just the trail lines onto it (no bg)
+      gCtx.setTransform(Renderer.dpr, 0, 0, Renderer.dpr, 0, 0);
+      gCtx.clearRect(0, 0, Renderer.width, Renderer.height);
+      let p2 = null;
+      if (startT > 0) p2 = SpiroMath.point(state.mode, state.R, state.r, state.d, startT, state.is3D, state.h, state.k);
+      for (let t2 = startT; t2 < endT; t2 += dt * 3) { // coarser step for perf
+        const pt2 = SpiroMath.point(state.mode, state.R, state.r, state.d, t2, state.is3D, state.h, state.k);
+        if (p2) {
+          const sp1 = Renderer.toScreen(p2), sp2 = Renderer.toScreen(pt2);
+          const prog2 = totalT > 0 ? t2 / totalT : 0;
+          gCtx.beginPath();
+          gCtx.moveTo(sp1.x, sp1.y);
+          gCtx.lineTo(sp2.x, sp2.y);
+          gCtx.strokeStyle = curveColor(state.hueStart + prog2 * state.hueSweep);
+          gCtx.lineWidth = state.lineWidth * 2;
+          gCtx.lineCap = 'round';
+          gCtx.stroke();
+        }
+        p2 = pt2;
+      }
+      // Blur the glow canvas and composite onto the curve canvas
+      const cCtx = Renderer.curveCtx;
+      cCtx.save();
+      cCtx.setTransform(Renderer.dpr, 0, 0, Renderer.dpr, 0, 0);
+      cCtx.filter = 'blur(8px)';
+      cCtx.globalCompositeOperation = 'lighter';
+      cCtx.globalAlpha = 0.3;
+      cCtx.drawImage(Renderer.glowCanvas, 0, 0, Renderer.width, Renderer.height);
+      cCtx.filter = 'none';
+      cCtx.globalCompositeOperation = 'source-over';
+      cCtx.globalAlpha = 1;
+      cCtx.restore();
+    }
+  },
+
+  // Redraw curve from startT to targetT
+  _redrawUpTo(targetT, startT) {
+    Renderer.clearCurve();
+    const R = Math.round(state.R), r = Math.round(state.r);
+    const totalT = state.totalT || SpiroMath.totalT(R, r);
+    const dt = Math.max(0.02, totalT / 4000);
+    const from = startT || 0;
+    let prev = null;
+    // Need a point just before 'from' for the first segment
+    if (from > 0) {
+      prev = SpiroMath.point(state.mode, state.R, state.r, state.d, from, state.is3D, state.h, state.k);
+    }
+    for (let t = from; t < targetT; t += dt) {
+      const pt = SpiroMath.point(state.mode, state.R, state.r, state.d, t, state.is3D, state.h, state.k);
+      if (prev) {
+        const progress = totalT > 0 ? t / totalT : 0;
+        const hue = state.hueStart + progress * state.hueSweep;
+        Renderer.drawSegment(prev, pt, curveColor(hue), progress);
+      }
+      prev = pt;
+    }
   },
 
   // Synchronous full redraw (for resize, pinch zoom, 3D orbit idle redraw)
@@ -1812,6 +1957,11 @@ function loadPreset(index) {
   History.push();
 }
 
+function speedToSliderValue(s) {
+  if (s <= 0.1) return 50 * Math.log10(Math.max(0.01, s) / 0.01);
+  return 50 + 50 * Math.log10(s / 0.1) / 2;
+}
+
 function updateAllSliderUI() {
   document.getElementById('slider-R').value = Math.round(state.R);
   document.getElementById('val-R').textContent = Math.round(state.R);
@@ -1823,6 +1973,8 @@ function updateAllSliderUI() {
   document.getElementById('val-hue').textContent = state.hueStart + '\u00b0';
   document.getElementById('slider-sweep').value = state.hueSweep;
   document.getElementById('val-sweep').textContent = state.hueSweep + '\u00b0';
+  document.getElementById('slider-speed').value = speedToSliderValue(state.speed);
+  document.getElementById('val-speed').textContent = state.speed < 1 ? state.speed.toFixed(2) : state.speed.toFixed(1);
 }
 
 // ===================================================================
@@ -1936,7 +2088,7 @@ function wireCanvasTouch() {
       const dy = t.clientY - Renderer.centerY;
 
       if (state.is3D) {
-        // 3D orbit
+        // 3D orbit — works during drawing too
         const deltaX = t.clientX - lastTouchX;
         const deltaY = t.clientY - lastTouchY;
         Camera.velYaw = deltaX * 0.005;
@@ -2391,7 +2543,7 @@ function wireControls() {
     { id: 'slider-d', val: 'val-d', key: 'd', fmt: v => v, isShapeParam: true },
     { id: 'slider-h', val: 'val-h', key: 'h', fmt: v => v, isShapeParam: true },
     { id: 'slider-k', val: 'val-k', key: 'k', fmt: v => v, isShapeParam: true },
-    { id: 'slider-speed', val: 'val-speed', key: 'speed', fmt: v => v },
+    // speed slider is wired separately (log-scale)
     { id: 'slider-width', val: 'val-width', key: 'lineWidth', fmt: v => v, isColorParam: true },
     { id: 'slider-hue', val: 'val-hue', key: 'hueStart', fmt: v => v + '\u00b0', isColorParam: true },
     { id: 'slider-sweep', val: 'val-sweep', key: 'hueSweep', fmt: v => v + '\u00b0', isColorParam: true },
@@ -2470,6 +2622,30 @@ function wireControls() {
         if (e2.key === 'Escape') { display.textContent = fmt(current); }
       });
     });
+  });
+
+  // Speed slider — log-scale: 0=0.01, 50=0.1 (center), 100=10
+  const speedSlider = document.getElementById('slider-speed');
+  const speedDisplay = document.getElementById('val-speed');
+  function sliderToSpeed(v) {
+    if (v <= 50) {
+      // 0→50 maps to 0.01→0.1 (exponential)
+      return 0.01 * Math.pow(10, v / 50);
+    } else {
+      // 50→100 maps to 0.1→10 (exponential)
+      return 0.1 * Math.pow(100, (v - 50) / 50);
+    }
+  }
+  function speedToSlider(s) {
+    if (s <= 0.1) {
+      return 50 * Math.log10(s / 0.01);
+    } else {
+      return 50 + 50 * Math.log10(s / 0.1) / 2;
+    }
+  }
+  speedSlider.addEventListener('input', () => {
+    state.speed = sliderToSpeed(parseFloat(speedSlider.value));
+    speedDisplay.textContent = state.speed < 1 ? state.speed.toFixed(2) : state.speed.toFixed(1);
   });
 
   // Apply symmetry lock when R changes, update minimap
@@ -2565,6 +2741,20 @@ function wireControls() {
       }
       if (state.isComplete || !state.isPlaying) Animator.livePreview();
     });
+  });
+
+  // Loop mode
+  document.getElementById('btn-loop').addEventListener('click', () => {
+    state.loopMode = !state.loopMode;
+    document.getElementById('btn-loop').classList.toggle('active', state.loopMode);
+    if (state.loopMode && state.isComplete) {
+      // Curve already finished — start the erase/redraw cycle
+      state.erasing = true;
+      state.eraseT = 0;
+      state.isComplete = false;
+      state.isPlaying = true;
+      Animator.updatePlayButton();
+    }
   });
 
   // Guide geometry opacity
@@ -2789,55 +2979,86 @@ function handleResize() {
 }
 
 // ===================================================================
-// ATTRACT MODE — cycle stunning presets before first interaction
+// SETTINGS PERSISTENCE
 // ===================================================================
-const AttractMode = {
-  active: false,
-  presetSequence: [3, 11, 10, 6], // Pentaflower, Bloom, Cosmos, Nephroid
-  currentIndex: 0,
-  cycleTimer: null,
-  morphTimer: null,
+const SETTINGS_KEY = 'spirograph-settings';
 
-  start() {
-    this.active = true;
-    this.currentIndex = 0;
-    this.showPreset(this.presetSequence[0]);
-    // Cycle every 4 seconds
-    this.cycleTimer = setInterval(() => {
-      this.currentIndex = (this.currentIndex + 1) % this.presetSequence.length;
-      this.crossfade(this.presetSequence[this.currentIndex]);
-    }, 4000);
-  },
+function saveSettings() {
+  const settings = {
+    is3D: state.is3D, mode: state.mode,
+    speed: state.speed, lineWidth: state.lineWidth,
+    trailMode: state.trailMode, trailLength: state.trailLength,
+    loopMode: state.loopMode,
+    showFX: state.showFX, fxOpacity: state.fxOpacity,
+    bgColor: state.bgColor,
+    saturation: state.saturation, lightness: state.lightness,
+    strokeMode: state.strokeMode,
+    onionSkin: state.onionSkin, showAnnotations: state.showAnnotations,
+    symmetryLock: state.symmetryLock, targetPetals: state.targetPetals,
+    soundOn: state.soundOn
+  };
+  try { localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings)); } catch {}
+}
 
-  showPreset(idx) {
-    const p = PRESETS[idx];
-    state.R = p.R; state.r = p.r; state.d = p.d;
-    state.mode = p.mode; state.hueStart = p.hue; state.hueSweep = p.sweep;
-    state.totalT = SpiroMath.totalT(p.R, p.r);
-    Renderer.computeScale();
-    Animator.drawInstant();
-  },
+function loadSettings() {
+  try {
+    const s = JSON.parse(localStorage.getItem(SETTINGS_KEY));
+    if (!s) return false;
+    if (s.is3D !== undefined) state.is3D = s.is3D;
+    if (s.mode) state.mode = s.mode;
+    if (s.speed !== undefined) state.speed = s.speed;
+    if (s.lineWidth !== undefined) state.lineWidth = s.lineWidth;
+    if (s.trailMode !== undefined) state.trailMode = s.trailMode;
+    if (s.trailLength !== undefined) state.trailLength = s.trailLength;
+    if (s.loopMode !== undefined) state.loopMode = s.loopMode;
+    if (s.showFX !== undefined) { state.showFX = s.showFX; state.showGlow = s.showFX; }
+    if (s.fxOpacity !== undefined) state.fxOpacity = s.fxOpacity;
+    if (s.bgColor) { state.bgColor = s.bgColor; document.body.style.background = s.bgColor; document.documentElement.style.setProperty('--bg', s.bgColor); }
+    if (s.saturation !== undefined) state.saturation = s.saturation;
+    if (s.lightness !== undefined) state.lightness = s.lightness;
+    if (s.strokeMode) state.strokeMode = s.strokeMode;
+    if (s.onionSkin !== undefined) state.onionSkin = s.onionSkin;
+    if (s.showAnnotations !== undefined) state.showAnnotations = s.showAnnotations;
+    if (s.symmetryLock !== undefined) state.symmetryLock = s.symmetryLock;
+    if (s.targetPetals !== undefined) state.targetPetals = s.targetPetals;
+    if (s.soundOn !== undefined) state.soundOn = s.soundOn;
+    return true;
+  } catch { return false; }
+}
 
-  crossfade(idx) {
-    if (!this.active) return;
-    // Fade current curve into layers, draw new one
-    Renderer.fadeCurve(0.6);
-    if (state.showGlow) {
-      const ctx = Renderer.glowCtx;
-      ctx.setTransform(Renderer.dpr, 0, 0, Renderer.dpr, 0, 0);
-      ctx.fillStyle = hexToRgba(state.bgColor, 0.6);
-      ctx.fillRect(0, 0, Renderer.width, Renderer.height);
-    }
-    this.showPreset(idx);
-  },
-
-  stop() {
-    if (!this.active) return;
-    this.active = false;
-    clearInterval(this.cycleTimer);
-    this.cycleTimer = null;
-  }
-};
+function syncUIToState() {
+  updateAllSliderUI();
+  document.querySelectorAll('.curve-mode-btn').forEach(b =>
+    b.classList.toggle('active', b.dataset.mode === state.mode));
+  document.querySelectorAll('.dim-btn').forEach(b =>
+    b.classList.toggle('active', b.dataset.dim === (state.is3D ? '3d' : '2d')));
+  document.querySelectorAll('.stroke-btn').forEach(b =>
+    b.classList.toggle('active', b.dataset.stroke === state.strokeMode));
+  document.getElementById('controls-panel').classList.toggle('show-3d', state.is3D);
+  document.getElementById('btn-fx').classList.toggle('active', state.showFX);
+  document.getElementById('btn-trail').classList.toggle('active', state.trailMode);
+  document.getElementById('group-trail').style.display = state.trailMode ? '' : 'none';
+  document.getElementById('btn-loop').classList.toggle('active', state.loopMode);
+  document.getElementById('btn-onion').classList.toggle('active', state.onionSkin);
+  document.getElementById('btn-annotate').classList.toggle('active', state.showAnnotations);
+  document.getElementById('btn-symmetry').classList.toggle('active', state.symmetryLock);
+  document.getElementById('petals-slider-group').style.display = state.symmetryLock ? '' : 'none';
+  document.getElementById('slider-r').disabled = state.symmetryLock;
+  document.getElementById('slider-petals').value = state.targetPetals;
+  document.getElementById('val-petals').textContent = state.targetPetals;
+  document.getElementById('slider-fx-opacity').value = state.fxOpacity;
+  document.getElementById('val-fx-opacity').textContent = Math.round(state.fxOpacity) + '%';
+  document.getElementById('slider-trail').value = state.trailLength;
+  document.getElementById('val-trail').textContent = Math.round(state.trailLength) + '%';
+  document.getElementById('slider-width').value = state.lineWidth;
+  document.getElementById('val-width').textContent = state.lineWidth;
+  document.getElementById('slider-sat').value = state.saturation;
+  document.getElementById('val-sat').textContent = state.saturation + '%';
+  document.getElementById('slider-lit').value = state.lightness;
+  document.getElementById('val-lit').textContent = state.lightness + '%';
+  document.getElementById('bg-color').value = state.bgColor;
+  updateSymmetryInfo();
+}
 
 // ===================================================================
 // INIT
@@ -2851,18 +3072,16 @@ function init() {
   buildMyPresetGallery();
   buildPaletteSwatches();
 
+  // Restore persisted settings (2D/3D, trail, loop, speed, etc.)
+  loadSettings();
+
   const hasHash = window.location.hash.length > 1;
   loadStateFromHash();   // apply any shared URL params before first draw
   MathPanel.update();
   window.addEventListener('resize', handleResize);
   window.addEventListener('orientationchange', handleResize);
-  // Sync UI to state after potential hash load
-  updateAllSliderUI();
-  document.querySelectorAll('.curve-mode-btn').forEach(b =>
-    b.classList.toggle('active', b.dataset.mode === state.mode));
-  document.querySelectorAll('.dim-btn').forEach(b =>
-    b.classList.toggle('active', b.dataset.dim === (state.is3D ? '3d' : '2d')));
-  document.getElementById('controls-panel').classList.toggle('show-3d', state.is3D);
+  // Sync all UI to current state
+  syncUIToState();
 
   History.push(); // save initial state
 
@@ -2890,45 +3109,17 @@ function init() {
 
     updateSymmetryInfo();
 
-    // Immersive start — collapse panel, start attract mode
+    // Immersive start — collapse panel, draw the randomized curve
     document.getElementById('controls-panel').classList.add('collapsed');
     document.getElementById('controls-toggle').setAttribute('aria-expanded', 'false');
-
-    AttractMode.start();
+    Animator.restart();
 
     // Pulse the ☰ button after 3s to hint at controls
     setTimeout(() => {
-      if (AttractMode.active) {
-        document.getElementById('controls-toggle').classList.add('hint-pulse');
-      }
+      document.getElementById('controls-toggle').classList.add('hint-pulse');
+      // Remove pulse after it plays
+      setTimeout(() => document.getElementById('controls-toggle').classList.remove('hint-pulse'), 4500);
     }, 3000);
-
-    // On first interaction anywhere, exit attract mode and open panel
-    const exitAttract = () => {
-      if (!AttractMode.active) return;
-      AttractMode.stop();
-      document.getElementById('controls-toggle').classList.remove('hint-pulse');
-      // Keep the current curve — just sync UI to whatever state attract left
-      updateAllSliderUI();
-      document.querySelectorAll('.curve-mode-btn').forEach(b =>
-        b.classList.toggle('active', b.dataset.mode === state.mode));
-      document.querySelectorAll('.dim-btn').forEach(b =>
-        b.classList.toggle('active', b.dataset.dim === (state.is3D ? '3d' : '2d')));
-      updateSymmetryInfo();
-      Animator.restart();
-      History.push();
-      // Open panel after a beat
-      setTimeout(() => {
-        document.getElementById('controls-panel').classList.remove('collapsed');
-        document.getElementById('controls-toggle').setAttribute('aria-expanded', 'true');
-      }, 300);
-      document.removeEventListener('touchstart', exitAttract);
-      document.removeEventListener('mousedown', exitAttract);
-      document.removeEventListener('keydown', exitAttract);
-    };
-    document.addEventListener('touchstart', exitAttract, { once: true });
-    document.addEventListener('mousedown', exitAttract, { once: true });
-    document.addEventListener('keydown', exitAttract, { once: true });
   }
 }
 

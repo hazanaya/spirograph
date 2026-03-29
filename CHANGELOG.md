@@ -4,6 +4,50 @@ All notable changes to this project will be documented in this file.
 
 ---
 
+## [2.1.0] — 2026-03-29
+
+### Added
+
+**Trail mode (ghost-free)**
+- Window-based trail rendering: clear canvas each frame, redraw only the visible portion
+- Opaque canvas fill with `globalCompositeOperation: 'copy'` eliminates AA ghost artifacts
+- Trail glow rendered via scratch buffer → blur → lighter composite onto opaque curve canvas
+- Trail Length slider (5–95%) controls visible window size
+
+**Loop mode**
+- Draw/erase cycle: after curve completes, erasing head advances while drawn portion shrinks
+- Once fully erased, drawing restarts from t=0 — infinite loop
+- Trail and Loop can be combined or used independently
+
+**Guide geometry improvements**
+- Solid lines (no dashes) — prevents static-dot visual artifact on rolling circles
+- 3D projected circles using point sampling (64/48 segments) through camera perspective
+- Guide opacity slider 0–100% with 5x brighter range than before
+- Guide rendering disabled during trail mode to prevent overlay ghost
+
+**Settings persistence**
+- All user preferences saved to localStorage every 2 seconds
+- Restored on page load: 2D/3D, trail, loop, speed, stroke mode, colors, etc.
+- Fresh defaults: 3D on, trail on, loop on, speed 0.1
+
+**Speed slider redesign**
+- Logarithmic scale: 0.01–10 range with 0.1 at center (50%)
+- Default speed 0.1 for contemplative drawing
+- Fine control at slow end, coarse at fast end
+
+**Attract mode removed**
+- Preset cycling replaced with direct randomized draw
+- Canvas always matches panel state — no jumps
+
+### Fixed
+
+- **3D floating during drawing** — full curve redraw every frame enables smooth orbit while drawing
+- **3D orbit reliability** — `Camera.dragging` flag tied to actual touch/mouse state
+- **Ghost afterimage in trail mode** — opaque canvas + disabled depth alpha + hidden glow/layers
+- **Guide circles in 3D** — projected through camera instead of flat 2D arcs
+
+---
+
 ## [2.0.0] — 2026-03-29
 
 ### Added
