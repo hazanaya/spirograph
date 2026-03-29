@@ -341,6 +341,14 @@ input[type="range"]:active::-webkit-slider-thumb { transform: scale(1.2); box-sh
     </div>
   </div>
 
+  <div class="panel-header" style="display:flex;justify-content:space-between;align-items:center">
+    <span>My Presets</span>
+    <button id="btn-save-preset" style="font-size:9px;padding:3px 10px;border-radius:6px;border:1px solid rgba(255,255,255,0.12);background:rgba(255,255,255,0.06);color:var(--text-dim);cursor:pointer;-webkit-tap-highlight-color:transparent">+ Save</button>
+  </div>
+  <div class="panel-section" id="my-presets-section" style="display:none">
+    <div class="preset-gallery" id="my-preset-gallery"></div>
+  </div>
+
   <div class="panel-header">Presets</div>
   <div class="panel-section">
     <div class="preset-gallery" id="preset-gallery"></div>
@@ -1670,6 +1678,77 @@ function wireCanvasTouch() {
 }
 
 // ===================================================================
+// CUSTOM PRESETS (localStorage)
+// ===================================================================
+const CUSTOM_PRESETS_KEY = 'spirograph-custom-presets';
+
+function getCustomPresets() {
+  try { return JSON.parse(localStorage.getItem(CUSTOM_PRESETS_KEY) || '[]'); }
+  catch { return []; }
+}
+
+function saveCustomPreset() {
+  const name = window.prompt('Name this preset:', 'My Pattern');
+  if (!name) return;
+  const presets = getCustomPresets();
+  presets.push({
+    name: name.trim() || 'Untitled',
+    R: Math.round(state.R), r: Math.round(state.r), d: Math.round(state.d),
+    mode: state.mode, hue: Math.round(state.hueStart), sweep: Math.round(state.hueSweep),
+    is3D: state.is3D, h: state.h, k: state.k
+  });
+  localStorage.setItem(CUSTOM_PRESETS_KEY, JSON.stringify(presets));
+  buildMyPresetGallery();
+}
+
+function deleteCustomPreset(index) {
+  const presets = getCustomPresets();
+  presets.splice(index, 1);
+  localStorage.setItem(CUSTOM_PRESETS_KEY, JSON.stringify(presets));
+  buildMyPresetGallery();
+}
+
+function loadCustomPreset(p) {
+  state.R = p.R; state.r = p.r; state.d = p.d;
+  state.mode = p.mode; state.hueStart = p.hue; state.hueSweep = p.sweep;
+  state.is3D = !!p.is3D; state.h = p.h || 40; state.k = p.k || 3;
+  updateAllSliderUI();
+  document.querySelectorAll('.curve-mode-btn').forEach(b =>
+    b.classList.toggle('active', b.dataset.mode === p.mode));
+  document.querySelectorAll('.dim-btn').forEach(b =>
+    b.classList.toggle('active', b.dataset.dim === (state.is3D ? '3d' : '2d')));
+  document.getElementById('controls-panel').classList.toggle('show-3d', state.is3D);
+  Animator.restart();
+}
+
+function buildMyPresetGallery() {
+  const gallery = document.getElementById('my-preset-gallery');
+  const section = document.getElementById('my-presets-section');
+  const presets = getCustomPresets();
+  gallery.innerHTML = '';
+  section.style.display = presets.length ? '' : 'none';
+  presets.forEach((p, i) => {
+    const item = document.createElement('div');
+    item.className = 'preset-item';
+    // Render thumbnail using the same helper as built-in presets
+    const thumb = renderPresetThumbnail({ R: p.R, r: p.r, d: p.d, mode: p.mode, hue: p.hue, sweep: p.sweep }, 80);
+    item.appendChild(thumb);
+    const nameEl = document.createElement('div');
+    nameEl.className = 'preset-name';
+    nameEl.textContent = p.name;
+    item.appendChild(nameEl);
+    // Delete button (×)
+    const del = document.createElement('button');
+    del.style.cssText = 'position:absolute;top:3px;right:3px;width:16px;height:16px;border-radius:50%;background:rgba(239,68,68,0.85);border:none;color:white;font-size:8px;cursor:pointer;display:flex;align-items:center;justify-content:center;padding:0;line-height:1;-webkit-tap-highlight-color:transparent';
+    del.innerHTML = '&#10005;';
+    del.addEventListener('click', e => { e.stopPropagation(); deleteCustomPreset(i); });
+    item.appendChild(del);
+    item.addEventListener('click', () => loadCustomPreset(p));
+    gallery.appendChild(item);
+  });
+}
+
+// ===================================================================
 // SVG EXPORT
 // ===================================================================
 function exportSVG() {
@@ -1867,6 +1946,7 @@ function wireControls() {
     Animator.start();
   });
 
+  document.getElementById('btn-save-preset').addEventListener('click', saveCustomPreset);
   document.getElementById('btn-rec').addEventListener('click', () => Recorder.toggle());
 
   document.getElementById('btn-shuffle').addEventListener('click', doShuffle);
@@ -1940,6 +2020,7 @@ function init() {
   wireControls();
   wireCanvasTouch();
   buildPresetGallery();
+  buildMyPresetGallery();
   MathPanel.update();
   window.addEventListener('resize', handleResize);
   window.addEventListener('orientationchange', handleResize);
