@@ -1043,6 +1043,7 @@ const Animator = {
   },
 
   onComplete() {
+    if (navigator.vibrate) navigator.vibrate([15, 50, 15]); // double-pulse on iPad/mobile
     Renderer.clearOverlay();
     Ripples.update(Renderer.overlayCtx);
     Renderer.updateGlow();
