@@ -231,6 +231,13 @@ input[type="range"]:active::-webkit-slider-thumb { transform: scale(1.2); box-sh
 
 @media (max-width: 768px) { :root { --panel-width: 260px; --math-panel-width: 300px; } }
 @media (max-width: 600px) { :root { --panel-width: 240px; --math-panel-width: 280px; } }
+
+/* Recording state — red tint, distinct from normal active (purple) */
+.action-btn.rec-active {
+  background: rgba(239, 68, 68, 0.18);
+  border-color: rgba(239, 68, 68, 0.6);
+  color: #f87171;
+}
 </style>
 </head>
 <body>
@@ -327,6 +334,10 @@ input[type="range"]:active::-webkit-slider-thumb { transform: scale(1.2); box-sh
     <div class="action-row">
       <button class="action-btn" id="btn-svg"><span class="btn-icon">&#9674;</span><span class="btn-label">SVG</span></button>
       <button class="action-btn" id="btn-onion"><span class="btn-icon">&#9678;</span><span class="btn-label">Onion</span></button>
+    </div>
+    <div class="action-row">
+      <button class="action-btn" id="btn-rec"><span class="btn-icon" id="rec-icon">&#9679;</span><span class="btn-label" id="rec-label">Rec</span></button>
+      <button class="action-btn" id="btn-share"><span class="btn-icon">&#9651;</span><span class="btn-label">Share</span></button>
     </div>
   </div>
 
@@ -917,6 +928,106 @@ const Evolve = {
     // Subtle fade for ghost trail effect
     Renderer.fadeCurve(0.008);
     Renderer.computeScale();
+  }
+};
+
+// ===================================================================
+// RECORDER — captures parameter snapshots and replays them
+// ===================================================================
+const Recorder = {
+  frames: [],
+  recState: 'idle',   // 'idle' | 'recording' | 'ready' | 'playing'
+  intervalId: null,
+  playTimeout: null,
+  playIndex: 0,
+  INTERVAL_MS: 150,
+
+  _capture() {
+    this.frames.push({
+      R: state.R, r: state.r, d: state.d,
+      mode: state.mode, is3D: state.is3D,
+      h: state.h, k: state.k,
+      hueStart: state.hueStart, hueSweep: state.hueSweep,
+      lineWidth: state.lineWidth
+    });
+  },
+
+  startRecording() {
+    this.frames = [];
+    this.recState = 'recording';
+    this._capture();
+    this.intervalId = setInterval(() => this._capture(), this.INTERVAL_MS);
+    this._updateUI();
+  },
+
+  stopRecording() {
+    clearInterval(this.intervalId);
+    this.recState = this.frames.length > 1 ? 'ready' : 'idle';
+    this._updateUI();
+  },
+
+  startPlayback() {
+    if (this.frames.length < 2) return;
+    this.recState = 'playing';
+    this.playIndex = 0;
+    this._updateUI();
+    this._playStep();
+  },
+
+  _playStep() {
+    if (this.recState !== 'playing') return;
+    if (this.playIndex >= this.frames.length) {
+      this.recState = 'ready';
+      this._updateUI();
+      return;
+    }
+    const f = this.frames[this.playIndex++];
+    state.R = f.R; state.r = f.r; state.d = f.d;
+    state.mode = f.mode; state.is3D = f.is3D;
+    state.h = f.h; state.k = f.k;
+    state.hueStart = f.hueStart; state.hueSweep = f.hueSweep;
+    state.lineWidth = f.lineWidth;
+    updateAllSliderUI();
+    document.querySelectorAll('.curve-mode-btn').forEach(b =>
+      b.classList.toggle('active', b.dataset.mode === f.mode));
+    document.querySelectorAll('.dim-btn').forEach(b =>
+      b.classList.toggle('active', b.dataset.dim === (f.is3D ? '3d' : '2d')));
+    document.getElementById('controls-panel').classList.toggle('show-3d', f.is3D);
+    Animator.livePreview();
+    this.playTimeout = setTimeout(() => this._playStep(), this.INTERVAL_MS);
+  },
+
+  stopPlayback() {
+    clearTimeout(this.playTimeout);
+    this.recState = 'ready';
+    this._updateUI();
+  },
+
+  toggle() {
+    if      (this.recState === 'idle')      this.startRecording();
+    else if (this.recState === 'recording') this.stopRecording();
+    else if (this.recState === 'ready')     this.startPlayback();
+    else if (this.recState === 'playing')   this.stopPlayback();
+  },
+
+  _updateUI() {
+    const btn = document.getElementById('btn-rec');
+    const icon = document.getElementById('rec-icon');
+    const label = document.getElementById('rec-label');
+    if (!btn) return;
+    btn.classList.remove('active', 'rec-active');
+    switch (this.recState) {
+      case 'idle':
+        icon.innerHTML = '&#9679;'; label.textContent = 'Rec'; break;
+      case 'recording':
+        icon.innerHTML = '&#9632;'; label.textContent = 'Stop';
+        btn.classList.add('rec-active'); break;
+      case 'ready':
+        icon.innerHTML = '&#9654;'; label.textContent = 'Play'; break;
+      case 'playing':
+        icon.innerHTML = '&#9632;'; label.textContent = 'Stop';
+        btn.classList.add('active'); break;
+    }
   }
 };
 
@@ -1755,6 +1866,8 @@ function wireControls() {
     Animator.reset();
     Animator.start();
   });
+
+  document.getElementById('btn-rec').addEventListener('click', () => Recorder.toggle());
 
   document.getElementById('btn-shuffle').addEventListener('click', doShuffle);
   document.getElementById('btn-evolve').addEventListener('click', () => Evolve.toggle());
