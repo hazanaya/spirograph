@@ -4,7 +4,7 @@
     {
       "name": "spirograph",
       "runtimeExecutable": "python3",
-      "runtimeArgs": ["-m", "http.server", "8765", "--directory", "/Users/haza/Desktop/Code Projects/Spirograph"],
+      "runtimeArgs": ["-m", "http.server", "8765", "--directory", "/Users/haza/Desktop/Code Projects/Spirograph/.claude/worktrees/thirsty-villani-31aa75"],
       "port": 8765
     }
   ]
