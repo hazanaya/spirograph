@@ -1,7 +1,51 @@
 # Spirograph App — Assessment & Improvement Plan
 
 > Prepared: 2026-04-21
-> Status: Research & Planning (no code changes)
+> Status: Partially executed — see Progress Update below
+> Last reviewed: 2026-06-06
+
+---
+
+## Progress Update — 2026-06-06
+
+This plan was written against the **single-file (~3,450 line)** version. Since
+then, **v3.0** shipped and executed the foundation sprint plus part of Phase 2.
+Treat the sections below as historical context; the items here are the source of
+truth for what is and isn't done.
+
+**Done since this plan was written:**
+- **4.1 ES module split** ✅ — `index.html` is now a shell loading one
+  `<script type="module">`; logic lives in `js/spiro-math.js`, `js/state.js`,
+  `js/curve-types.js`, `js/renderer.js`, `js/app.js`.
+- **4.2 Curve-type abstraction** ✅ — a `CurveType` interface with a
+  `CURVE_TYPES` registry (`js/curve-types.js`).
+- **2.1 Guilloché mode** ✅ — `GuillocheCurve` ships as a registered curve type
+  (the plan's "centerpiece," delivered as a drop-in type rather than the larger
+  envelope/fill engine in 2.4).
+- **2.2 Rose curve** ✅ and **2.3 Lissajous** ✅ — both registered curve types.
+- **4.5 Phone-responsive layout** ✅ — controls/math/LFO panels behave as
+  bottom sheets on compact screens.
+- Loop-style selector (`once`/`wipe`/`rewind`/`trail`) replaced the old
+  trail/loop booleans — see `DECISIONS.md`.
+
+**Still open from this plan (not started):**
+- **1.1 Variable-width strokes** — the tapered mode modulates width by *progress
+  %*, not by curvature/speed as specified here.
+- **1.2 Sub-pixel rendering**, **1.3 Parallel offset curves**, **1.4 Paper
+  textures**, **1.5 Print-quality export**.
+- **2.4 Curve composition engine** and **2.5 Crosshatch fills** — the true
+  compound-pattern capstone is still unbuilt; current Guilloché is a single
+  curve type, not envelope+fill composition.
+- **3.x Discovery/UX** (gallery, "more like this," semantic controls, layer
+  management, visual undo timeline, tutorials) — none started.
+- **4.3 Rendering-pipeline refactor** and **4.4 State grouping** — `state` is
+  still a flat ~30-key bag; `js/app.js` is a ~2,600-line god-module (Animator,
+  Sound, UI, presets, settings, history, LFO). See `HANDOFF.md` watch points.
+- **5.x Polish** (animation export, sound V2, community sharing, print
+  templates, full light theme) — none started.
+
+The "Priority Matrix" and "Recommended Starting Sequence" below are kept for
+reference but are partly superseded; completed rows are noted inline.
 
 ---
 
@@ -306,15 +350,15 @@ The current dark UI with neon glow is distinctive, but guilloche patterns (and m
 2. Light backgrounds and paper tones (1.4) — unlocks the guilloche aesthetic
 3. Variable-width strokes (1.1) — transforms line quality
 
-**Foundation sprint (1–2 weeks):**
-4. ES module split (4.1) — necessary for managing increased complexity
-5. Curve type abstraction (4.2) — the architectural prerequisite for everything in Phase 2
+**Foundation sprint (1–2 weeks):** ✅ DONE (v3.0)
+4. ES module split (4.1) — ✅ done
+5. Curve type abstraction (4.2) — ✅ done
 
-**Guilloche sprint (2–3 weeks):**
-6. Rose curve mode (2.2) — simple new curve type to validate the abstraction
-7. Lissajous mode (2.3) — second validation, different visual family
-8. Guilloche envelope mode (2.1) — the centerpiece feature
-9. Curve composition (2.4) — enables true compound patterns
+**Guilloche sprint (2–3 weeks):** partially done
+6. Rose curve mode (2.2) — ✅ done
+7. Lissajous mode (2.3) — ✅ done
+8. Guilloche envelope mode (2.1) — ✅ done as a single `GuillocheCurve` type
+9. Curve composition (2.4) — ⬜ still open (the true compound-pattern capstone)
 
 **Experience sprint (1–2 weeks):**
 10. Pattern gallery (3.1) + "More like this" (3.2)
