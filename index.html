@@ -186,6 +186,7 @@ input[type="range"]:active::-webkit-slider-thumb { transform: scale(1.2); box-sh
 .action-btn .btn-label { font-size: 8px; font-weight: 600; letter-spacing: 0.3px; text-transform: uppercase; color: var(--text-dim); }
 .action-btn:active { background: rgba(255,255,255,0.1); transform: scale(0.95); }
 .action-btn.active { background: rgba(99, 102, 241, 0.2); border-color: var(--accent); color: var(--accent); }
+.action-btn:disabled { opacity: 0.45; cursor: not-allowed; transform: none; }
 
 /* ===== PRESET GALLERY ===== */
 .preset-gallery { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
@@ -253,13 +254,154 @@ input[type="range"]:active::-webkit-slider-thumb { transform: scale(1.2); box-sh
 .layer-badge.show { display: flex; }
 
 @media (max-width: 768px) { :root { --panel-width: 260px; --math-panel-width: 300px; } }
-@media (max-width: 600px) { :root { --panel-width: 240px; --math-panel-width: 280px; } }
+@media (max-width: 600px) {
+  :root { --panel-width: 100vw; --math-panel-width: 100vw; }
+
+  .panel {
+    top: auto; left: 0; right: 0; bottom: 0;
+    width: 100vw; max-height: min(72vh, 620px);
+    border-radius: 18px 18px 0 0;
+    border-left: none; border-right: none; border-bottom: none;
+    padding: 0 0 env(safe-area-inset-bottom) 0;
+  }
+  #controls-panel,
+  #math-panel {
+    left: 0; right: 0;
+    padding-left: env(safe-area-inset-left);
+    padding-right: env(safe-area-inset-right);
+  }
+  #controls-panel.collapsed,
+  #math-panel.collapsed { transform: translateY(calc(100% + 2px)); }
+  #controls-panel:not(.collapsed) ~ #controls-toggle,
+  #math-panel:not(.collapsed) ~ #math-toggle {
+    top: 16px;
+  }
+  #controls-panel:not(.collapsed) ~ #controls-toggle { left: 16px; }
+  #math-panel:not(.collapsed) ~ #math-toggle { right: 16px; }
+
+  .panel-header { padding: 16px 16px 6px; }
+  .panel-section { padding: 10px 16px; }
+  .preset-gallery { grid-template-columns: repeat(4, 1fr); }
+  .action-row { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  .action-btn { min-width: 0; }
+
+  #lfo-drawer { border-radius: 16px 16px 0 0; }
+  #lfo-content { max-height: 42vh; }
+  .lfo-row-header { padding: 8px 14px; gap: 6px; }
+  .lfo-expanded { padding-left: 62px; padding-right: 14px; }
+}
+
+@media (max-width: 420px) {
+  .action-row { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .preset-gallery { grid-template-columns: repeat(3, 1fr); }
+}
 
 /* Recording state — red tint, distinct from normal active (purple) */
 .action-btn.rec-active {
   background: rgba(239, 68, 68, 0.18);
   border-color: rgba(239, 68, 68, 0.6);
   color: #f87171;
+}
+
+/* ===== LFO / MODULATION DRAWER ===== */
+#lfo-drawer {
+  position: fixed;
+  bottom: 0; left: 0; right: 0; z-index: 30;
+  background: rgba(8, 8, 20, 0.96);
+  backdrop-filter: blur(30px) saturate(1.5);
+  -webkit-backdrop-filter: blur(30px) saturate(1.5);
+  border-top: 1px solid rgba(255,255,255,0.1);
+  border-radius: 18px 18px 0 0;
+  transition: transform 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+  padding-bottom: env(safe-area-inset-bottom);
+}
+#lfo-drawer.lfo-collapsed { transform: translateY(calc(100% - 48px)); }
+
+#lfo-tab {
+  height: 48px;
+  display: flex; align-items: center; justify-content: center; gap: 10px;
+  cursor: pointer; -webkit-tap-highlight-color: transparent;
+  font-size: 11px; font-weight: 700; letter-spacing: 1.8px; text-transform: uppercase;
+  color: var(--text-dim); user-select: none; -webkit-user-select: none;
+}
+#lfo-tab .lfo-tab-wave { font-size: 20px; color: var(--accent); }
+#lfo-tab .lfo-tab-arrow { font-size: 10px; transition: transform 0.3s; }
+#lfo-drawer:not(.lfo-collapsed) .lfo-tab-arrow { transform: rotate(180deg); }
+#lfo-tab:active { opacity: 0.7; }
+
+#lfo-content {
+  overflow-y: auto; overflow-x: hidden; max-height: 46vh; padding-bottom: 6px;
+  -webkit-overflow-scrolling: touch;
+}
+#lfo-content::-webkit-scrollbar { display: none; }
+
+.lfo-row { border-bottom: 1px solid rgba(255,255,255,0.04); }
+.lfo-row-header { display: flex; align-items: center; gap: 8px; padding: 9px 16px; }
+.lfo-param-name {
+  font-size: 10px; font-weight: 700; text-transform: uppercase;
+  letter-spacing: 0.8px; color: var(--text-dim); width: 50px; flex-shrink: 0;
+}
+.lfo-live-val {
+  font-family: 'SF Mono', ui-monospace, monospace;
+  font-size: 11px; color: var(--accent); min-width: 36px; text-align: right; flex-shrink: 0;
+}
+.lfo-base-slider {
+  flex: 1; -webkit-appearance: none; appearance: none;
+  height: 4px; border-radius: 2px; background: rgba(255,255,255,0.08); outline: none; cursor: pointer;
+}
+.lfo-base-slider::-webkit-slider-thumb {
+  -webkit-appearance: none; width: 20px; height: 20px; border-radius: 50%;
+  background: var(--accent); border: 2px solid rgba(255,255,255,0.15);
+  box-shadow: 0 0 8px rgba(99,102,241,0.4);
+}
+.lfo-toggle {
+  width: 30px; height: 30px; border-radius: 50%; flex-shrink: 0;
+  border: 1px solid rgba(255,255,255,0.12); background: transparent;
+  color: var(--text-dim); font-size: 15px; cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  transition: all 0.2s; -webkit-tap-highlight-color: transparent;
+}
+.lfo-toggle.lfo-enabled {
+  background: rgba(99,102,241,0.2); border-color: var(--accent); color: var(--accent);
+  animation: lfo-pulse 1.4s ease-in-out infinite;
+}
+@keyframes lfo-pulse {
+  0%,100% { box-shadow: 0 0 5px rgba(99,102,241,0.4); }
+  50%      { box-shadow: 0 0 14px rgba(99,102,241,0.85); }
+}
+.lfo-expanded {
+  overflow: hidden;
+  transition: max-height 0.28s ease, opacity 0.22s ease, padding 0.28s ease;
+  max-height: 130px; opacity: 1; padding: 0 16px 10px 74px;
+}
+.lfo-expanded.collapsed { max-height: 0; opacity: 0; padding-top: 0; padding-bottom: 0; }
+.lfo-sub-row { display: flex; align-items: center; gap: 8px; margin-bottom: 7px; }
+.lfo-sub-label {
+  font-size: 9px; text-transform: uppercase; letter-spacing: 0.4px;
+  color: var(--text-dim); width: 34px; flex-shrink: 0;
+}
+.lfo-sub-slider {
+  flex: 1; -webkit-appearance: none; appearance: none;
+  height: 3px; border-radius: 2px; background: rgba(255,255,255,0.08); outline: none; cursor: pointer;
+}
+.lfo-sub-slider::-webkit-slider-thumb {
+  -webkit-appearance: none; width: 16px; height: 16px; border-radius: 50%;
+  background: rgba(99,102,241,0.9);
+}
+.lfo-sub-val {
+  font-family: 'SF Mono', ui-monospace, monospace;
+  font-size: 10px; color: var(--text-dim); min-width: 44px; text-align: right; flex-shrink: 0;
+}
+.lfo-wave-row { display: flex; gap: 5px; margin-top: 2px; }
+.lfo-wave-btn {
+  flex: 1; height: 26px; border: 1px solid rgba(255,255,255,0.1); border-radius: 6px;
+  background: rgba(255,255,255,0.04); color: var(--text-dim); font-size: 13px;
+  cursor: pointer; display: flex; align-items: center; justify-content: center;
+  transition: all 0.15s; -webkit-tap-highlight-color: transparent;
+  font-family: 'SF Mono', ui-monospace, monospace;
+}
+.lfo-wave-btn.active {
+  background: rgba(99,102,241,0.22); border-color: var(--accent); color: var(--accent);
 }
 </style>
 </head>
@@ -457,7 +599,103 @@ input[type="range"]:active::-webkit-slider-thumb { transform: scale(1.2); box-sh
 <button class="panel-toggle" id="controls-toggle" aria-label="Toggle controls panel" aria-expanded="true">&#9776;</button>
 <button class="panel-toggle" id="math-toggle" aria-label="Toggle math panel" aria-expanded="false">&fnof;</button>
 
+<!-- LFO / Modulation drawer — slides up from bottom -->
+<div id="lfo-drawer" class="lfo-collapsed">
+  <div id="lfo-tab">
+    <span class="lfo-tab-wave">∿</span>
+    <span>MOD</span>
+    <span class="lfo-tab-arrow">▲</span>
+  </div>
+  <div id="lfo-content"></div>
+</div>
+
 <script>
+// ===================================================================
+// APP STATE SNAPSHOTS
+// ===================================================================
+const HISTORY_STATE_KEYS = [
+  'R', 'r', 'd', 'mode', 'is3D', 'h', 'k',
+  'speed', 'lineWidth', 'hueStart', 'hueSweep',
+  'colorMode', 'saturation', 'lightness', 'strokeMode',
+  'showFX', 'showGlow', 'fxOpacity',
+  'trailMode', 'trailLength', 'loopMode',
+  'bgColor', 'onionSkin', 'showAnnotations',
+  'symmetryLock', 'targetPetals',
+  'offsetX', 'offsetY', 'soundOn'
+];
+
+const PERSISTED_STATE_KEYS = HISTORY_STATE_KEYS.filter(key =>
+  !['offsetX', 'offsetY', 'soundOn'].includes(key)
+);
+
+function captureStateSnapshot({ includeLayers = false, includeLFO = false } = {}) {
+  const snap = {};
+  HISTORY_STATE_KEYS.forEach(key => { snap[key] = state[key]; });
+  if (includeLayers) {
+    snap.layerCount = state.layerCount;
+    snap.layerData = state.layerCount > 0 ? Renderer.layersCanvas.toDataURL() : null;
+  }
+  if (includeLFO && typeof LFOEngine !== 'undefined') {
+    snap.lfo = LFOEngine.capture();
+  }
+  return snap;
+}
+
+function applyStateSnapshot(snap, { restoreLayers = false, restart = false, fromSettings = false } = {}) {
+  if (!snap) return;
+
+  HISTORY_STATE_KEYS.forEach(key => {
+    if (Object.prototype.hasOwnProperty.call(snap, key)) state[key] = snap[key];
+  });
+
+  // Audio cannot safely resume after reload without a user gesture.
+  if (fromSettings || (state.soundOn && typeof Sound !== 'undefined' && !Sound.initialized)) {
+    state.soundOn = false;
+  }
+
+  state.mode = state.mode === 'epi' ? 'epi' : 'hypo';
+  state.colorMode = state.colorMode || (state.hueSweep === 0 ? 'solid' : 'gradient');
+  state.showGlow = state.showFX;
+  if (state.layerCount > 0 && state.trailMode) state.trailMode = false;
+
+  if (snap.lfo && typeof LFOEngine !== 'undefined') {
+    LFOEngine.restore(snap.lfo);
+  }
+
+  document.body.style.background = state.bgColor;
+  document.documentElement.style.setProperty('--bg', state.bgColor);
+
+  if (restoreLayers) {
+    restoreLayerSnapshot(snap);
+  }
+
+  syncUIToState();
+  if (restart) Animator.restart();
+}
+
+function comparableSnapshot(snap) {
+  const copy = { ...snap };
+  delete copy.layerData;
+  return JSON.stringify(copy);
+}
+
+function restoreLayerSnapshot(snap) {
+  if (snap.layerData) {
+    const img = new Image();
+    img.onload = () => {
+      Renderer.layersCtx.setTransform(Renderer.dpr, 0, 0, Renderer.dpr, 0, 0);
+      Renderer.layersCtx.clearRect(0, 0, Renderer.width, Renderer.height);
+      Renderer.layersCtx.drawImage(img, 0, 0, Renderer.width, Renderer.height);
+    };
+    img.src = snap.layerData;
+    state.layerCount = snap.layerCount || 0;
+  } else {
+    Renderer.layersCtx.clearRect(0, 0, Renderer.width, Renderer.height);
+    state.layerCount = 0;
+  }
+  updateLayerBadge();
+}
+
 // ===================================================================
 // SPIROGRAPH MATH
 // ===================================================================
@@ -471,17 +709,7 @@ const History = {
   ignoreNext: false,
 
   captureState() {
-    return {
-      R: state.R, r: state.r, d: state.d,
-      mode: state.mode, is3D: state.is3D,
-      h: state.h, k: state.k,
-      hueStart: state.hueStart, hueSweep: state.hueSweep,
-      lineWidth: state.lineWidth, speed: state.speed,
-      bgColor: state.bgColor,
-      // Capture layer canvas as data URL only if layers exist
-      layerCount: state.layerCount,
-      layerData: state.layerCount > 0 ? Renderer.layersCanvas.toDataURL() : null
-    };
+    return captureStateSnapshot({ includeLayers: true, includeLFO: true });
   },
 
   push() {
@@ -490,12 +718,7 @@ const History = {
     // Don't push if identical to current
     if (this.index >= 0) {
       const prev = this.stack[this.index];
-      if (prev.R === snap.R && prev.r === snap.r && prev.d === snap.d &&
-          prev.mode === snap.mode && prev.is3D === snap.is3D &&
-          prev.h === snap.h && prev.k === snap.k &&
-          prev.hueStart === snap.hueStart && prev.hueSweep === snap.hueSweep &&
-          prev.lineWidth === snap.lineWidth && prev.bgColor === snap.bgColor &&
-          prev.layerCount === snap.layerCount) return;
+      if (comparableSnapshot(prev) === comparableSnapshot(snap)) return;
     }
     // Truncate any redo history
     this.stack.length = this.index + 1;
@@ -506,37 +729,7 @@ const History = {
 
   restore(snap) {
     this.ignoreNext = true;
-    state.R = snap.R; state.r = snap.r; state.d = snap.d;
-    state.mode = snap.mode; state.is3D = snap.is3D;
-    state.h = snap.h; state.k = snap.k;
-    state.hueStart = snap.hueStart; state.hueSweep = snap.hueSweep;
-    state.lineWidth = snap.lineWidth; state.speed = snap.speed;
-    state.bgColor = snap.bgColor;
-    document.body.style.background = state.bgColor;
-    document.documentElement.style.setProperty('--bg', state.bgColor);
-    document.getElementById('bg-color').value = state.bgColor;
-    // Restore layers
-    if (snap.layerData) {
-      const img = new Image();
-      img.onload = () => {
-        Renderer.layersCtx.clearRect(0, 0, Renderer.layersCanvas.width, Renderer.layersCanvas.height);
-        Renderer.layersCtx.drawImage(img, 0, 0);
-      };
-      img.src = snap.layerData;
-      state.layerCount = snap.layerCount;
-    } else {
-      Renderer.layersCtx.clearRect(0, 0, Renderer.layersCanvas.width, Renderer.layersCanvas.height);
-      state.layerCount = 0;
-    }
-    updateLayerBadge();
-    updateAllSliderUI();
-    document.querySelectorAll('.curve-mode-btn').forEach(b =>
-      b.classList.toggle('active', b.dataset.mode === state.mode));
-    document.querySelectorAll('.dim-btn').forEach(b =>
-      b.classList.toggle('active', b.dataset.dim === (state.is3D ? '3d' : '2d')));
-    document.getElementById('controls-panel').classList.toggle('show-3d', state.is3D);
-    updateSymmetryInfo();
-    Animator.restart();
+    applyStateSnapshot(snap, { restoreLayers: true, restart: true });
   },
 
   undo() {
@@ -677,6 +870,7 @@ const state = {
   trailMode: true, trailLength: 50,
   loopMode: true, erasing: false, eraseT: 0,
   bgColor: '#07070d',
+  colorMode: 'gradient',
   saturation: 90, lightness: 60, strokeMode: 'solid',
   showAnnotations: false
 };
@@ -1025,6 +1219,7 @@ const Sound = {
 
   init() {
     if (this.initialized) return;
+    if (!window.AudioContext && !window.webkitAudioContext) throw new Error('AudioContext unavailable');
     this.ctx = new (window.AudioContext || window.webkitAudioContext)();
     this.osc = this.ctx.createOscillator();
     this.filter = this.ctx.createBiquadFilter();
@@ -1065,13 +1260,22 @@ const Sound = {
   toggle() {
     state.soundOn = !state.soundOn;
     if (state.soundOn) {
-      this.init();
-      if (this.ctx.state === 'suspended') this.ctx.resume();
-      if (state.isPlaying) this.fadeIn();
+      try {
+        this.init();
+        if (this.ctx.state === 'suspended') this.ctx.resume();
+        if (state.isPlaying) this.fadeIn();
+      } catch {
+        state.soundOn = false;
+      }
     } else {
       this.fadeOut();
     }
-    document.getElementById('btn-sound').classList.toggle('active', state.soundOn);
+    this.syncUI();
+  },
+
+  syncUI() {
+    const btn = document.getElementById('btn-sound');
+    if (btn) btn.classList.toggle('active', state.soundOn && this.initialized);
   }
 };
 
@@ -1355,6 +1559,7 @@ const Animator = {
   stepsPerFrame: 8,
   running: false,      // unified loop running
   idleAge: 0,          // frames since curve completed
+  lastFrameTs: 0,
 
   // === UNIFIED LOOP — always running, never stops ===
   beginLoop() {
@@ -1363,12 +1568,19 @@ const Animator = {
     this._frame();
   },
 
-  _frame() {
+  _frame(ts = performance.now()) {
+    const frameDt = this.lastFrameTs ? Math.min((ts - this.lastFrameTs) / 1000, 0.1) : 0;
+    this.lastFrameTs = ts;
+
     // 1. Camera always updates in 3D
     if (state.is3D) Camera.update();
 
     // 2. Evolve updates params continuously
     Evolve.update();
+
+    // LFO modulation is driven by the unified animation loop.
+    const lfoDirty = LFOEngine.update(frameDt);
+    if (lfoDirty) this.renderCurrentState();
 
     // 3. Advance curve drawing if playing
     if (state.isPlaying && !state.isComplete) {
@@ -1486,7 +1698,7 @@ const Animator = {
     this._saveFrame = (this._saveFrame || 0) + 1;
     if (this._saveFrame % 120 === 0) saveSettings();
 
-    requestAnimationFrame(() => this._frame());
+    requestAnimationFrame(ts => this._frame(ts));
   },
 
   // === Public API ===
@@ -1646,6 +1858,18 @@ const Animator = {
     this.updatePlayButton();
     MathPanel.update();
     Annotations.draw(Renderer.overlayCtx);
+  },
+
+  renderCurrentState() {
+    state.totalT = SpiroMath.totalT(Math.round(state.R), Math.round(state.r));
+    Renderer.computeScale();
+    if (state.isPlaying && !state.isComplete) {
+      MathPanel.update();
+      return;
+    }
+    if (state.isComplete) this._redrawComplete();
+    else if (state.currentT > 0) this._redrawUpTo(state.currentT, state.erasing ? state.eraseT : 0);
+    MathPanel.update();
   },
 
   // Draw a windowed portion of the curve with alpha fade at the tail
@@ -1829,6 +2053,7 @@ const MathPanel = {
     const sign = state.mode === 'hypo' ? '&minus;' : '+';
     const combo = state.mode === 'hypo' ? R - r : R + r;
     const ratioStr = combo + '/' + r;
+    const penXSign = state.mode === 'hypo' ? '+' : '&minus;';
 
     let zLine = '';
     if (state.is3D) {
@@ -1836,7 +2061,7 @@ const MathPanel = {
     }
 
     el.innerHTML = `
-      <div><span class="eq-func">x</span><span class="eq-op">(</span><span class="eq-t">t</span><span class="eq-op">) = </span><span class="eq-op">(</span><span class="eq-R">${R}</span><span class="eq-op"> ${sign} </span><span class="eq-r">${r}</span><span class="eq-op">)</span><span class="eq-op">cos</span><span class="eq-t">t</span><span class="eq-op"> + </span><span class="eq-d">${d}</span><span class="eq-op">&middot;cos(</span><span class="eq-op">${ratioStr}</span><span class="eq-t"> t</span><span class="eq-op">)</span></div>
+      <div><span class="eq-func">x</span><span class="eq-op">(</span><span class="eq-t">t</span><span class="eq-op">) = </span><span class="eq-op">(</span><span class="eq-R">${R}</span><span class="eq-op"> ${sign} </span><span class="eq-r">${r}</span><span class="eq-op">)</span><span class="eq-op">cos</span><span class="eq-t">t</span><span class="eq-op"> ${penXSign} </span><span class="eq-d">${d}</span><span class="eq-op">&middot;cos(</span><span class="eq-op">${ratioStr}</span><span class="eq-t"> t</span><span class="eq-op">)</span></div>
       <div style="margin-top:4px"><span class="eq-func">y</span><span class="eq-op">(</span><span class="eq-t">t</span><span class="eq-op">) = </span><span class="eq-op">(</span><span class="eq-R">${R}</span><span class="eq-op"> ${sign} </span><span class="eq-r">${r}</span><span class="eq-op">)</span><span class="eq-op">sin</span><span class="eq-t">t</span><span class="eq-op"> &minus; </span><span class="eq-d">${d}</span><span class="eq-op">&middot;sin(</span><span class="eq-op">${ratioStr}</span><span class="eq-t"> t</span><span class="eq-op">)</span></div>
       ${zLine}
       <div style="margin-top:8px; font-size:11px; color:var(--text-dim);">where <span class="eq-R">R</span>=<span class="eq-R">${R}</span>, <span class="eq-r">r</span>=<span class="eq-r">${r}</span>, <span class="eq-d">d</span>=<span class="eq-d">${d}</span></div>
@@ -1951,7 +2176,9 @@ function loadPreset(index) {
   const p = PRESETS[index];
   state.R = p.R; state.r = p.r; state.d = p.d;
   state.mode = p.mode; state.hueStart = p.hue; state.hueSweep = p.sweep;
+  state.colorMode = p.sweep === 0 ? 'solid' : 'gradient';
   updateAllSliderUI();
+  syncColorModeUI();
   document.querySelectorAll('.curve-mode-btn').forEach(btn => btn.classList.toggle('active', btn.dataset.mode === p.mode));
   Animator.restart();
   History.push();
@@ -1969,12 +2196,91 @@ function updateAllSliderUI() {
   document.getElementById('val-r').textContent = Math.round(state.r);
   document.getElementById('slider-d').value = Math.round(state.d);
   document.getElementById('val-d').textContent = Math.round(state.d);
+  document.getElementById('slider-h').value = Math.round(state.h);
+  document.getElementById('val-h').textContent = Math.round(state.h);
+  document.getElementById('slider-k').value = state.k;
+  document.getElementById('val-k').textContent = Number.isInteger(state.k) ? state.k : state.k.toFixed(1);
+  document.getElementById('slider-width').value = state.lineWidth;
+  document.getElementById('val-width').textContent = Number.isInteger(state.lineWidth) ? state.lineWidth : state.lineWidth.toFixed(1);
   document.getElementById('slider-hue').value = state.hueStart;
-  document.getElementById('val-hue').textContent = state.hueStart + '\u00b0';
+  document.getElementById('val-hue').textContent = Math.round(state.hueStart) + '\u00b0';
   document.getElementById('slider-sweep').value = state.hueSweep;
-  document.getElementById('val-sweep').textContent = state.hueSweep + '\u00b0';
+  document.getElementById('val-sweep').textContent = Math.round(state.hueSweep) + '\u00b0';
   document.getElementById('slider-speed').value = speedToSliderValue(state.speed);
   document.getElementById('val-speed').textContent = state.speed < 1 ? state.speed.toFixed(2) : state.speed.toFixed(1);
+  document.getElementById('slider-sat').value = state.saturation;
+  document.getElementById('val-sat').textContent = Math.round(state.saturation) + '%';
+  document.getElementById('slider-lit').value = state.lightness;
+  document.getElementById('val-lit').textContent = Math.round(state.lightness) + '%';
+}
+
+function syncColorModeUI() {
+  state.colorMode = state.colorMode || (state.hueSweep === 0 ? 'solid' : 'gradient');
+  document.querySelectorAll('.color-mode-btn').forEach(btn =>
+    btn.classList.toggle('active', btn.dataset.color === state.colorMode));
+
+  const hueGroup = document.getElementById('group-hue');
+  const sweepGroup = document.getElementById('group-sweep');
+  if (!hueGroup || !sweepGroup) return;
+
+  if (state.colorMode === 'rainbow') {
+    hueGroup.style.display = 'none';
+    sweepGroup.style.display = 'none';
+  } else if (state.colorMode === 'solid') {
+    hueGroup.style.display = '';
+    sweepGroup.style.display = 'none';
+  } else {
+    hueGroup.style.display = '';
+    sweepGroup.style.display = '';
+  }
+}
+
+function syncTrailControls() {
+  if (state.layerCount > 0 && state.trailMode) state.trailMode = false;
+  const btn = document.getElementById('btn-trail');
+  const group = document.getElementById('group-trail');
+  if (!btn || !group) return;
+
+  btn.classList.toggle('active', state.trailMode);
+  btn.disabled = state.layerCount > 0;
+  btn.setAttribute('aria-disabled', state.layerCount > 0 ? 'true' : 'false');
+  btn.title = state.layerCount > 0
+    ? 'Trail mode is unavailable while layers are visible'
+    : 'Toggle trail mode';
+  group.style.display = state.trailMode ? '' : 'none';
+}
+
+function setTrailMode(enabled, { restartIfComplete = true } = {}) {
+  const next = !!enabled && state.layerCount === 0;
+  const changed = state.trailMode !== next;
+  state.trailMode = next;
+  syncTrailControls();
+
+  if (changed) {
+    if (state.trailMode && state.isComplete && restartIfComplete) {
+      Animator.restart();
+    } else if (!state.trailMode && (state.isComplete || !state.isPlaying)) {
+      Animator.livePreview();
+    }
+  }
+  return changed;
+}
+
+function isCompactLayout() {
+  return window.matchMedia && window.matchMedia('(max-width: 600px)').matches;
+}
+
+function setPanelCollapsed(panelId, toggleId, collapsed) {
+  const panel = document.getElementById(panelId);
+  const toggle = document.getElementById(toggleId);
+  if (!panel) return;
+  panel.classList.toggle('collapsed', collapsed);
+  if (toggle) toggle.setAttribute('aria-expanded', collapsed ? 'false' : 'true');
+}
+
+function setLFODrawerCollapsed(collapsed) {
+  const drawer = document.getElementById('lfo-drawer');
+  if (drawer) drawer.classList.toggle('lfo-collapsed', collapsed);
 }
 
 // ===================================================================
@@ -2204,6 +2510,280 @@ function wireCanvasTouch() {
 }
 
 // ===================================================================
+// LFO ENGINE — low-frequency oscillator modulation for all parameters
+// ===================================================================
+const LFOEngine = {
+  // One entry per modulatable parameter
+  params: {
+    R:         { base: 100, rate: 0.50, depth: 0.30, wave: 'sine',     enabled: false, min: 20,   max: 200 },
+    r:         { base:  63, rate: 0.40, depth: 0.30, wave: 'sine',     enabled: false, min: 3,    max: 195 },
+    d:         { base:  50, rate: 0.60, depth: 0.40, wave: 'sine',     enabled: false, min: 1,    max: 195 },
+    lineWidth: { base: 1.5, rate: 1.00, depth: 0.50, wave: 'sine',     enabled: false, min: 0.5,  max: 10  },
+    drawSpeed: { base: 0.1, rate: 0.20, depth: 0.50, wave: 'sine',     enabled: false, min: 0.01, max: 10  },
+    hue:       { base:   0, rate: 0.10, depth: 1.00, wave: 'saw',      enabled: false, min: 0,    max: 360 },
+    hueSweep:  { base: 360, rate: 0.30, depth: 0.50, wave: 'triangle', enabled: false, min: 0,    max: 720 },
+    camH:      { base:  40, rate: 0.20, depth: 0.50, wave: 'sine',     enabled: false, min: 0,    max: 120 },
+    camK:      { base:   3, rate: 0.30, depth: 0.40, wave: 'triangle', enabled: false, min: 1,    max: 20  },
+  },
+
+  // LFO key -> state key
+  STATE_MAP: {
+    R: 'R', r: 'r', d: 'd', lineWidth: 'lineWidth', drawSpeed: 'speed',
+    hue: 'hueStart', hueSweep: 'hueSweep', camH: 'h', camK: 'k'
+  },
+
+  globalTime: 0, _frame: 0,
+  FRAME_SKIP: 2, // ~30 fps effective while the main loop stays authoritative
+
+  waveforms: {
+    sine:     x => Math.sin(2 * Math.PI * x),
+    triangle: x => 1 - 4 * Math.abs(((x + 0.25) % 1 + 1) % 1 - 0.5),
+    saw:      x => 2 * ((x % 1 + 1) % 1) - 1,
+    square:   x => Math.sign(Math.sin(2 * Math.PI * x)) || 1,
+  },
+
+  capture() {
+    const snap = {};
+    Object.entries(this.params).forEach(([key, p]) => {
+      snap[key] = {
+        base: p.base,
+        rate: p.rate,
+        depth: p.depth,
+        wave: p.wave,
+        enabled: p.enabled
+      };
+    });
+    return snap;
+  },
+
+  restore(snap) {
+    if (!snap) return;
+    Object.entries(snap).forEach(([key, saved]) => {
+      const p = this.params[key];
+      if (!p || !saved) return;
+      const base = parseFloat(saved.base);
+      const rate = parseFloat(saved.rate);
+      const depth = parseFloat(saved.depth);
+      if (Number.isFinite(base)) p.base = Math.max(p.min, Math.min(p.max, base));
+      if (Number.isFinite(rate)) p.rate = Math.max(0.05, Math.min(4, rate));
+      if (Number.isFinite(depth)) p.depth = Math.max(0, Math.min(1, depth));
+      if (this.waveforms[saved.wave]) p.wave = saved.wave;
+      p.enabled = !!saved.enabled;
+      if (!p.enabled) state[this.STATE_MAP[key]] = p.base;
+    });
+    this.globalTime = 0;
+    this._frame = 0;
+  },
+
+  syncUI() {
+    Object.entries(this.params).forEach(([key, p]) => {
+      const base = document.getElementById('lfo-base-' + key);
+      const rate = document.getElementById('lfo-rate-' + key);
+      const depth = document.getElementById('lfo-depth-' + key);
+      const rateVal = document.getElementById('lfo-rateval-' + key);
+      const depthVal = document.getElementById('lfo-depthval-' + key);
+      if (base) base.value = p.enabled ? state[this.STATE_MAP[key]] : p.base;
+      if (rate) rate.value = p.rate;
+      if (depth) depth.value = p.depth;
+      if (rateVal) rateVal.textContent = p.rate.toFixed(2) + ' Hz';
+      if (depthVal) depthVal.textContent = Math.round(p.depth * 100) + '%';
+      this._updateLiveLabel(key, p.enabled ? state[this.STATE_MAP[key]] : p.base);
+      this._refreshToggle(key);
+      document.querySelectorAll(`.lfo-wave-btn[data-key="${key}"]`).forEach(btn =>
+        btn.classList.toggle('active', btn.dataset.wave === p.wave));
+    });
+  },
+
+  anyActive() { return Object.values(this.params).some(p => p.enabled); },
+
+  start() { this._frame = 0; },
+  stop() { this._frame = 0; },
+
+  update(dt) {
+    if (!this.anyActive()) return false;
+    this.globalTime += dt;
+    if (++this._frame % this.FRAME_SKIP !== 0) return false;
+
+    let dirty = false;
+    Object.entries(this.params).forEach(([key, p]) => {
+      if (!p.enabled) return;
+      dirty = true;
+      const range = p.max - p.min;
+      const offset = p.depth * (range * 0.5) * this.waveforms[p.wave](p.rate * this.globalTime);
+      const live = Math.max(p.min, Math.min(p.max, p.base + offset));
+      state[this.STATE_MAP[key]] = live;
+      this._updateLiveLabel(key, live);
+    });
+
+    if (dirty) updateAllSliderUI();
+    return dirty;
+  },
+
+  enableLFO(key) {
+    const p = this.params[key];
+    p.base = state[this.STATE_MAP[key]]; // anchor to current value
+    p.enabled = true;
+    const bs = document.getElementById('lfo-base-' + key);
+    if (bs) bs.value = p.base;
+    this.start();
+    this._refreshToggle(key);
+  },
+
+  disableLFO(key) {
+    this.params[key].enabled = false;
+    state[this.STATE_MAP[key]] = this.params[key].base; // restore base
+    if (!this.anyActive()) this.stop();
+    this._refreshToggle(key);
+    updateAllSliderUI();
+    Animator.renderCurrentState();
+  },
+
+  toggleLFO(key) { this.params[key].enabled ? this.disableLFO(key) : this.enableLFO(key); },
+
+  setBase(key, value) {
+    this.params[key].base = value;
+    if (!this.params[key].enabled) state[this.STATE_MAP[key]] = value;
+  },
+
+  _formatLive(key, value) {
+    if (key === 'lineWidth' || key === 'camK') return value.toFixed(1);
+    if (key === 'drawSpeed') return value.toFixed(2);
+    if (key === 'hue' || key === 'hueSweep') return Math.round(value) + '°';
+    return Math.round(value);
+  },
+
+  _updateLiveLabel(key, value) {
+    const el = document.getElementById('lfo-live-' + key);
+    if (el) el.textContent = this._formatLive(key, value);
+  },
+
+  _refreshToggle(key) {
+    const btn = document.getElementById('lfo-toggle-' + key);
+    if (btn) btn.classList.toggle('lfo-enabled', this.params[key].enabled);
+    const exp = document.getElementById('lfo-exp-' + key);
+    if (exp) exp.classList.toggle('collapsed', !this.params[key].enabled);
+  }
+};
+
+// ===================================================================
+// LFO PANEL BUILDER — generates all 9 parameter rows dynamically
+// ===================================================================
+function buildLFOPanel() {
+  const content = document.getElementById('lfo-content');
+  if (!content) return;
+  content.innerHTML = '';
+
+    const ROWS = [
+    { key: 'R',         label: 'R',      min: 20,   max: 200, step: 1,    fmt: v => Math.round(v)     },
+    { key: 'r',         label: 'r',      min: 3,    max: 195, step: 1,    fmt: v => Math.round(v)     },
+    { key: 'd',         label: 'd',      min: 1,    max: 195, step: 1,    fmt: v => Math.round(v)     },
+    { key: 'lineWidth', label: 'Width',  min: 0.5,  max: 10,  step: 0.5,  fmt: v => v.toFixed(1)      },
+    { key: 'drawSpeed', label: 'Speed',  min: 0.01, max: 10,  step: 0.01, fmt: v => v.toFixed(2)      },
+    { key: 'hue',       label: 'Hue',   min: 0,    max: 360, step: 1,    fmt: v => Math.round(v)+'°' },
+    { key: 'hueSweep',  label: 'Sweep',  min: 0,    max: 720, step: 1,    fmt: v => Math.round(v)+'°' },
+    { key: 'camH',      label: 'Height', min: 0,    max: 120, step: 1,    fmt: v => Math.round(v)     },
+    { key: 'camK',      label: 'Z Freq', min: 1,    max: 20,  step: 0.1,  fmt: v => v.toFixed(1)      },
+  ];
+
+  const WAVES = [
+    { id: 'sine',     icon: '∿', name: 'sine' },
+    { id: 'triangle', icon: '△', name: 'triangle' },
+    { id: 'saw',      icon: '/', name: 'saw' },
+    { id: 'square',   icon: '⊓', name: 'square' },
+  ];
+
+  ROWS.forEach(({ key, label, min, max, step, fmt }) => {
+    const p = LFOEngine.params[key];
+    const curBase = state[LFOEngine.STATE_MAP[key]] ?? p.base;
+
+    const row = document.createElement('div');
+    row.className = 'lfo-row';
+    row.innerHTML = `
+      <div class="lfo-row-header">
+        <span class="lfo-param-name">${label}</span>
+        <span class="lfo-live-val" id="lfo-live-${key}">${fmt(curBase)}</span>
+        <input type="range" class="lfo-base-slider" id="lfo-base-${key}"
+               min="${min}" max="${max}" step="${step}" value="${curBase}"
+               aria-label="${label} modulation base">
+        <button class="lfo-toggle${p.enabled ? ' lfo-enabled' : ''}"
+                id="lfo-toggle-${key}" type="button"
+                aria-label="Toggle ${label} modulation"
+                title="Toggle ${label} modulation">∿</button>
+      </div>
+      <div class="lfo-expanded${p.enabled ? '' : ' collapsed'}" id="lfo-exp-${key}">
+        <div class="lfo-sub-row">
+          <span class="lfo-sub-label">Rate</span>
+          <input type="range" class="lfo-sub-slider" id="lfo-rate-${key}"
+                 min="0.05" max="4" step="0.05" value="${p.rate}"
+                 aria-label="${label} modulation rate">
+          <span class="lfo-sub-val" id="lfo-rateval-${key}">${p.rate.toFixed(2)} Hz</span>
+        </div>
+        <div class="lfo-sub-row">
+          <span class="lfo-sub-label">Depth</span>
+          <input type="range" class="lfo-sub-slider" id="lfo-depth-${key}"
+                 min="0" max="1" step="0.01" value="${p.depth}"
+                 aria-label="${label} modulation depth">
+          <span class="lfo-sub-val" id="lfo-depthval-${key}">${Math.round(p.depth * 100)}%</span>
+        </div>
+        <div class="lfo-wave-row">
+          ${WAVES.map(w =>
+            `<button class="lfo-wave-btn${p.wave === w.id ? ' active' : ''}"
+                     type="button" data-wave="${w.id}" data-key="${key}"
+                     aria-label="Use ${w.name} wave for ${label} modulation"
+                     title="${w.name} wave">${w.icon}</button>`
+          ).join('')}
+        </div>
+      </div>`;
+    content.appendChild(row);
+
+    // Base slider
+    row.querySelector('#lfo-base-' + key).addEventListener('input', e => {
+      const v = parseFloat(e.target.value);
+      LFOEngine.setBase(key, v);
+      document.getElementById('lfo-live-' + key).textContent = fmt(v);
+      if (!LFOEngine.params[key].enabled) {
+        updateAllSliderUI();
+        Animator.renderCurrentState();
+      }
+    });
+    row.querySelector('#lfo-base-' + key).addEventListener('change', () => History.push());
+
+    // ∿ toggle
+    row.querySelector('#lfo-toggle-' + key).addEventListener('click', () => {
+      LFOEngine.toggleLFO(key);
+      History.push();
+    });
+
+    // Rate slider
+    row.querySelector('#lfo-rate-' + key).addEventListener('input', e => {
+      LFOEngine.params[key].rate = parseFloat(e.target.value);
+      document.getElementById('lfo-rateval-' + key).textContent =
+        LFOEngine.params[key].rate.toFixed(2) + ' Hz';
+    });
+    row.querySelector('#lfo-rate-' + key).addEventListener('change', () => History.push());
+
+    // Depth slider
+    row.querySelector('#lfo-depth-' + key).addEventListener('input', e => {
+      LFOEngine.params[key].depth = parseFloat(e.target.value);
+      document.getElementById('lfo-depthval-' + key).textContent =
+        Math.round(LFOEngine.params[key].depth * 100) + '%';
+    });
+    row.querySelector('#lfo-depth-' + key).addEventListener('change', () => History.push());
+
+    // Waveform buttons
+    row.querySelectorAll('.lfo-wave-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        LFOEngine.params[key].wave = btn.dataset.wave;
+        row.querySelectorAll('.lfo-wave-btn').forEach(b =>
+          b.classList.toggle('active', b.dataset.wave === btn.dataset.wave));
+        History.push();
+      });
+    });
+  });
+  LFOEngine.syncUI();
+}
+
+// ===================================================================
 // CUSTOM PRESETS (localStorage)
 // ===================================================================
 const CUSTOM_PRESETS_KEY = 'spirograph-custom-presets';
@@ -2221,6 +2801,10 @@ function saveCustomPreset() {
     name: name.trim() || 'Untitled',
     R: Math.round(state.R), r: Math.round(state.r), d: Math.round(state.d),
     mode: state.mode, hue: Math.round(state.hueStart), sweep: Math.round(state.hueSweep),
+    colorMode: state.colorMode,
+    saturation: state.saturation, lightness: state.lightness,
+    lineWidth: state.lineWidth, strokeMode: state.strokeMode,
+    bgColor: state.bgColor,
     is3D: state.is3D, h: state.h, k: state.k
   });
   localStorage.setItem(CUSTOM_PRESETS_KEY, JSON.stringify(presets));
@@ -2237,14 +2821,28 @@ function deleteCustomPreset(index) {
 function loadCustomPreset(p) {
   state.R = p.R; state.r = p.r; state.d = p.d;
   state.mode = p.mode; state.hueStart = p.hue; state.hueSweep = p.sweep;
+  state.colorMode = p.colorMode || (p.sweep === 0 ? 'solid' : 'gradient');
+  if (p.saturation !== undefined) state.saturation = p.saturation;
+  if (p.lightness !== undefined) state.lightness = p.lightness;
+  if (p.lineWidth !== undefined) state.lineWidth = p.lineWidth;
+  if (p.strokeMode) state.strokeMode = p.strokeMode;
+  if (p.bgColor) {
+    state.bgColor = p.bgColor;
+    document.body.style.background = state.bgColor;
+    document.documentElement.style.setProperty('--bg', state.bgColor);
+  }
   state.is3D = !!p.is3D; state.h = p.h || 40; state.k = p.k || 3;
   updateAllSliderUI();
+  syncColorModeUI();
   document.querySelectorAll('.curve-mode-btn').forEach(b =>
     b.classList.toggle('active', b.dataset.mode === p.mode));
   document.querySelectorAll('.dim-btn').forEach(b =>
     b.classList.toggle('active', b.dataset.dim === (state.is3D ? '3d' : '2d')));
+  document.querySelectorAll('.stroke-btn').forEach(b =>
+    b.classList.toggle('active', b.dataset.stroke === state.strokeMode));
   document.getElementById('controls-panel').classList.toggle('show-3d', state.is3D);
   Animator.restart();
+  History.push();
 }
 
 function buildMyPresetGallery() {
@@ -2277,15 +2875,31 @@ function buildMyPresetGallery() {
 // ===================================================================
 // URL SHARING — encode/decode state in the location hash
 // ===================================================================
+function clampParam(raw, min, max, fallback) {
+  const value = parseFloat(raw);
+  if (!Number.isFinite(value)) return fallback;
+  return Math.min(max, Math.max(min, value));
+}
+
+function wrapDegrees(raw, fallback) {
+  const value = parseFloat(raw);
+  if (!Number.isFinite(value)) return fallback;
+  return ((value % 360) + 360) % 360;
+}
+
 function encodeStateToHash() {
   const p = new URLSearchParams({
     R:    Math.round(state.R),
     r:    Math.round(state.r),
     d:    Math.round(state.d),
     m:    state.mode,
+    cm:   state.colorMode,
     hue:  Math.round(state.hueStart),
     sw:   Math.round(state.hueSweep),
+    sat:  Math.round(state.saturation),
+    lit:  Math.round(state.lightness),
     lw:   state.lineWidth,
+    st:   state.strokeMode,
     '3d': state.is3D ? 1 : 0,
     h:    state.h,
     k:    state.k
@@ -2297,16 +2911,21 @@ function loadStateFromHash() {
   if (!location.hash || location.hash.length < 3) return;
   try {
     const p = new URLSearchParams(location.hash.slice(1));
-    if (p.has('R'))   state.R   = parseFloat(p.get('R'));
-    if (p.has('r'))   state.r   = parseFloat(p.get('r'));
-    if (p.has('d'))   state.d   = parseFloat(p.get('d'));
+    if (p.has('R'))   state.R = clampParam(p.get('R'), 20, 200, state.R);
+    if (p.has('r'))   state.r = clampParam(p.get('r'), 3, 195, state.r);
+    if (p.has('d'))   state.d = clampParam(p.get('d'), 1, 195, state.d);
     if (p.has('m'))   state.mode = p.get('m') === 'epi' ? 'epi' : 'hypo';
-    if (p.has('hue')) state.hueStart  = parseFloat(p.get('hue'));
-    if (p.has('sw'))  state.hueSweep  = parseFloat(p.get('sw'));
-    if (p.has('lw'))  state.lineWidth = parseFloat(p.get('lw'));
+    if (p.has('cm'))  state.colorMode = ['solid', 'gradient', 'rainbow'].includes(p.get('cm')) ? p.get('cm') : state.colorMode;
+    if (p.has('hue')) state.hueStart = wrapDegrees(p.get('hue'), state.hueStart);
+    if (p.has('sw'))  state.hueSweep = clampParam(p.get('sw'), 0, 720, state.hueSweep);
+    if (p.has('sat')) state.saturation = clampParam(p.get('sat'), 0, 100, state.saturation);
+    if (p.has('lit')) state.lightness = clampParam(p.get('lit'), 10, 90, state.lightness);
+    if (p.has('lw'))  state.lineWidth = clampParam(p.get('lw'), 0.5, 10, state.lineWidth);
+    if (p.has('st'))  state.strokeMode = ['solid', 'dotted', 'dashed', 'tapered'].includes(p.get('st')) ? p.get('st') : state.strokeMode;
     if (p.has('3d'))  state.is3D = p.get('3d') === '1';
-    if (p.has('h'))   state.h = parseFloat(p.get('h'));
-    if (p.has('k'))   state.k = parseFloat(p.get('k'));
+    if (p.has('h'))   state.h = clampParam(p.get('h'), 0, 120, state.h);
+    if (p.has('k'))   state.k = clampParam(p.get('k'), 1, 20, state.k);
+    if (!p.has('cm')) state.colorMode = state.hueSweep === 0 ? 'solid' : 'gradient';
   } catch { return; }
 }
 
@@ -2579,6 +3198,8 @@ function wireControls() {
         if (!state.isEvolving) Animator.restart();
         History.push();
       });
+    } else if (isColorParam) {
+      slider.addEventListener('change', () => History.push());
     }
   });
 
@@ -2615,6 +3236,7 @@ function wireControls() {
         } else if (isColorParam) {
           if (state.isComplete || !state.isPlaying) Animator.livePreview();
         }
+        History.push();
       };
       input.addEventListener('blur', commit);
       input.addEventListener('keydown', (e2) => {
@@ -2647,6 +3269,7 @@ function wireControls() {
     state.speed = sliderToSpeed(parseFloat(speedSlider.value));
     speedDisplay.textContent = state.speed < 1 ? state.speed.toFixed(2) : state.speed.toFixed(1);
   });
+  speedSlider.addEventListener('change', () => History.push());
 
   // Apply symmetry lock when R changes, update minimap
   document.getElementById('slider-R').addEventListener('input', () => {
@@ -2676,6 +3299,7 @@ function wireControls() {
       Animator.livePreview();
     }
     updateSymmetryInfo();
+    History.push();
   });
 
   // Petals slider
@@ -2687,6 +3311,7 @@ function wireControls() {
   });
   document.getElementById('slider-petals').addEventListener('change', () => {
     if (!state.isEvolving) Animator.restart();
+    History.push();
   });
 
   updateSymmetryInfo();
@@ -2699,6 +3324,7 @@ function wireControls() {
       state.mode = btn.dataset.mode;
       if (state.symmetryLock) applySymmetryLock();
       Animator.softReset();
+      History.push();
     });
   });
 
@@ -2710,6 +3336,7 @@ function wireControls() {
       state.is3D = btn.dataset.dim === '3d';
       document.getElementById('controls-panel').classList.toggle('show-3d', state.is3D);
       Animator.restart();
+      History.push();
     });
   });
 
@@ -2719,27 +3346,21 @@ function wireControls() {
       document.querySelectorAll('.color-mode-btn').forEach(b => b.classList.remove('active'));
       btn.classList.add('active');
       const colorMode = btn.dataset.color;
-      const hueGroup = document.getElementById('group-hue');
-      const sweepGroup = document.getElementById('group-sweep');
+      state.colorMode = colorMode;
       if (colorMode === 'rainbow') {
         state.hueStart = 0; state.hueSweep = 360;
         document.getElementById('slider-hue').value = 0;
         document.getElementById('val-hue').textContent = '0\u00b0';
         document.getElementById('slider-sweep').value = 360;
         document.getElementById('val-sweep').textContent = '360\u00b0';
-        hueGroup.style.display = 'none';
-        sweepGroup.style.display = 'none';
       } else if (colorMode === 'solid') {
         state.hueSweep = 0;
         document.getElementById('slider-sweep').value = 0;
         document.getElementById('val-sweep').textContent = '0\u00b0';
-        hueGroup.style.display = '';
-        sweepGroup.style.display = 'none';
-      } else {
-        hueGroup.style.display = '';
-        sweepGroup.style.display = '';
       }
+      syncColorModeUI();
       if (state.isComplete || !state.isPlaying) Animator.livePreview();
+      History.push();
     });
   });
 
@@ -2755,6 +3376,7 @@ function wireControls() {
       state.isPlaying = true;
       Animator.updatePlayButton();
     }
+    History.push();
   });
 
   // Guide geometry opacity
@@ -2762,21 +3384,19 @@ function wireControls() {
     state.fxOpacity = parseFloat(document.getElementById('slider-fx-opacity').value);
     document.getElementById('val-fx-opacity').textContent = Math.round(state.fxOpacity) + '%';
   });
+  document.getElementById('slider-fx-opacity').addEventListener('change', () => History.push());
 
   // Trail mode
   document.getElementById('btn-trail').addEventListener('click', () => {
-    state.trailMode = !state.trailMode;
-    document.getElementById('btn-trail').classList.toggle('active', state.trailMode);
-    document.getElementById('group-trail').style.display = state.trailMode ? '' : 'none';
-    // If trail just turned on and curve is complete, restart the draw
-    if (state.trailMode && state.isComplete) {
-      Animator.restart();
-    }
+    if (state.layerCount > 0) return;
+    setTrailMode(!state.trailMode);
+    History.push();
   });
   document.getElementById('slider-trail').addEventListener('input', () => {
     state.trailLength = parseFloat(document.getElementById('slider-trail').value);
     document.getElementById('val-trail').textContent = Math.round(state.trailLength) + '%';
   });
+  document.getElementById('slider-trail').addEventListener('change', () => History.push());
 
   // Stroke mode toggle
   document.querySelectorAll('.stroke-btn').forEach(btn => {
@@ -2785,6 +3405,7 @@ function wireControls() {
       btn.classList.add('active');
       state.strokeMode = btn.dataset.stroke;
       if (state.isComplete || !state.isPlaying) Animator.livePreview();
+      History.push();
     });
   });
 
@@ -2795,6 +3416,7 @@ function wireControls() {
     document.documentElement.style.setProperty('--bg', state.bgColor);
     if (state.isComplete) Animator.livePreview();
   });
+  document.getElementById('bg-color').addEventListener('change', () => History.push());
 
   // Action buttons
   document.getElementById('btn-play').addEventListener('click', () => Animator.toggle());
@@ -2813,6 +3435,7 @@ function wireControls() {
     document.getElementById('btn-fx').classList.toggle('active', state.showFX);
     if (!state.showFX) { Renderer.clearOverlay(); Renderer.clearGlow(); }
     else if (state.isComplete) Animator.livePreview();
+    History.push();
   });
 
   document.getElementById('btn-save').addEventListener('click', () => {
@@ -2846,17 +3469,23 @@ function wireControls() {
       Renderer.clearOverlay();
       Annotations.draw(Renderer.overlayCtx);
     }
+    History.push();
   });
 
   document.getElementById('btn-onion').addEventListener('click', () => {
     state.onionSkin = !state.onionSkin;
     state.onionCaptured = false;
     document.getElementById('btn-onion').classList.toggle('active', state.onionSkin);
+    History.push();
   });
 
   document.getElementById('btn-sound').addEventListener('click', () => Sound.toggle());
 
   document.getElementById('btn-layer').addEventListener('click', () => {
+    if (state.trailMode) {
+      setTrailMode(false, { restartIfComplete: false });
+      Animator.livePreview();
+    }
     Renderer.stampLayer();
     state.layerCount++;
     updateLayerBadge();
@@ -2877,16 +3506,35 @@ function wireControls() {
   document.getElementById('btn-shuffle').addEventListener('click', doShuffle);
   document.getElementById('btn-evolve').addEventListener('click', () => Evolve.toggle());
 
+  // LFO drawer tab
+  document.getElementById('lfo-tab').addEventListener('click', () => {
+    const drawer = document.getElementById('lfo-drawer');
+    const willOpen = drawer.classList.contains('lfo-collapsed');
+    if (willOpen && isCompactLayout()) {
+      setPanelCollapsed('controls-panel', 'controls-toggle', true);
+      setPanelCollapsed('math-panel', 'math-toggle', true);
+    }
+    setLFODrawerCollapsed(!drawer.classList.contains('lfo-collapsed'));
+  });
+
   // Panel toggles
   document.getElementById('controls-toggle').addEventListener('click', () => {
     const panel = document.getElementById('controls-panel');
-    panel.classList.toggle('collapsed');
-    document.getElementById('controls-toggle').setAttribute('aria-expanded', !panel.classList.contains('collapsed'));
+    const willOpen = panel.classList.contains('collapsed');
+    if (willOpen && isCompactLayout()) {
+      setPanelCollapsed('math-panel', 'math-toggle', true);
+      setLFODrawerCollapsed(true);
+    }
+    setPanelCollapsed('controls-panel', 'controls-toggle', !panel.classList.contains('collapsed'));
   });
   document.getElementById('math-toggle').addEventListener('click', () => {
     const panel = document.getElementById('math-panel');
-    panel.classList.toggle('collapsed');
-    document.getElementById('math-toggle').setAttribute('aria-expanded', !panel.classList.contains('collapsed'));
+    const willOpen = panel.classList.contains('collapsed');
+    if (willOpen && isCompactLayout()) {
+      setPanelCollapsed('controls-panel', 'controls-toggle', true);
+      setLFODrawerCollapsed(true);
+    }
+    setPanelCollapsed('math-panel', 'math-toggle', !panel.classList.contains('collapsed'));
     MathPanel.update();
   });
 
@@ -2911,8 +3559,7 @@ function wireControls() {
       case 'f': case 'F': document.getElementById('btn-fx').click(); break;
       case 'm': case 'M': document.getElementById('math-toggle').click(); break;
       case 'Escape':
-        document.getElementById('controls-panel').classList.toggle('collapsed');
-        document.getElementById('controls-toggle').setAttribute('aria-expanded',
+        setPanelCollapsed('controls-panel', 'controls-toggle',
           !document.getElementById('controls-panel').classList.contains('collapsed'));
         break;
       case '1': case '2': case '3': case '4': case '5':
@@ -2963,7 +3610,9 @@ function updateLayerBadge() {
     badge.textContent = state.layerCount;
   } else {
     badge.classList.remove('show');
+    badge.textContent = '0';
   }
+  syncTrailControls();
 }
 
 // ===================================================================
@@ -2973,7 +3622,17 @@ let resizeTimer;
 function handleResize() {
   clearTimeout(resizeTimer);
   resizeTimer = setTimeout(() => {
+    const layerSnapshot = state.layerCount > 0 ? Renderer.layersCanvas.toDataURL() : null;
     Renderer.resize();
+    if (layerSnapshot) {
+      const img = new Image();
+      img.onload = () => {
+        Renderer.layersCtx.setTransform(Renderer.dpr, 0, 0, Renderer.dpr, 0, 0);
+        Renderer.layersCtx.clearRect(0, 0, Renderer.width, Renderer.height);
+        Renderer.layersCtx.drawImage(img, 0, 0, Renderer.width, Renderer.height);
+      };
+      img.src = layerSnapshot;
+    }
     if (state.isComplete) Animator.livePreview();
   }, 150);
 }
@@ -2984,19 +3643,9 @@ function handleResize() {
 const SETTINGS_KEY = 'spirograph-settings';
 
 function saveSettings() {
-  const settings = {
-    is3D: state.is3D, mode: state.mode,
-    speed: state.speed, lineWidth: state.lineWidth,
-    trailMode: state.trailMode, trailLength: state.trailLength,
-    loopMode: state.loopMode,
-    showFX: state.showFX, fxOpacity: state.fxOpacity,
-    bgColor: state.bgColor,
-    saturation: state.saturation, lightness: state.lightness,
-    strokeMode: state.strokeMode,
-    onionSkin: state.onionSkin, showAnnotations: state.showAnnotations,
-    symmetryLock: state.symmetryLock, targetPetals: state.targetPetals,
-    soundOn: state.soundOn
-  };
+  const settings = {};
+  PERSISTED_STATE_KEYS.forEach(key => { settings[key] = state[key]; });
+  settings.lfo = LFOEngine.capture();
   try { localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings)); } catch {}
 }
 
@@ -3004,24 +3653,7 @@ function loadSettings() {
   try {
     const s = JSON.parse(localStorage.getItem(SETTINGS_KEY));
     if (!s) return false;
-    if (s.is3D !== undefined) state.is3D = s.is3D;
-    if (s.mode) state.mode = s.mode;
-    if (s.speed !== undefined) state.speed = s.speed;
-    if (s.lineWidth !== undefined) state.lineWidth = s.lineWidth;
-    if (s.trailMode !== undefined) state.trailMode = s.trailMode;
-    if (s.trailLength !== undefined) state.trailLength = s.trailLength;
-    if (s.loopMode !== undefined) state.loopMode = s.loopMode;
-    if (s.showFX !== undefined) { state.showFX = s.showFX; state.showGlow = s.showFX; }
-    if (s.fxOpacity !== undefined) state.fxOpacity = s.fxOpacity;
-    if (s.bgColor) { state.bgColor = s.bgColor; document.body.style.background = s.bgColor; document.documentElement.style.setProperty('--bg', s.bgColor); }
-    if (s.saturation !== undefined) state.saturation = s.saturation;
-    if (s.lightness !== undefined) state.lightness = s.lightness;
-    if (s.strokeMode) state.strokeMode = s.strokeMode;
-    if (s.onionSkin !== undefined) state.onionSkin = s.onionSkin;
-    if (s.showAnnotations !== undefined) state.showAnnotations = s.showAnnotations;
-    if (s.symmetryLock !== undefined) state.symmetryLock = s.symmetryLock;
-    if (s.targetPetals !== undefined) state.targetPetals = s.targetPetals;
-    if (s.soundOn !== undefined) state.soundOn = s.soundOn;
+    applyStateSnapshot(s, { fromSettings: true });
     return true;
   } catch { return false; }
 }
@@ -3036,8 +3668,6 @@ function syncUIToState() {
     b.classList.toggle('active', b.dataset.stroke === state.strokeMode));
   document.getElementById('controls-panel').classList.toggle('show-3d', state.is3D);
   document.getElementById('btn-fx').classList.toggle('active', state.showFX);
-  document.getElementById('btn-trail').classList.toggle('active', state.trailMode);
-  document.getElementById('group-trail').style.display = state.trailMode ? '' : 'none';
   document.getElementById('btn-loop').classList.toggle('active', state.loopMode);
   document.getElementById('btn-onion').classList.toggle('active', state.onionSkin);
   document.getElementById('btn-annotate').classList.toggle('active', state.showAnnotations);
@@ -3057,6 +3687,11 @@ function syncUIToState() {
   document.getElementById('slider-lit').value = state.lightness;
   document.getElementById('val-lit').textContent = state.lightness + '%';
   document.getElementById('bg-color').value = state.bgColor;
+  syncColorModeUI();
+  syncTrailControls();
+  updateLayerBadge();
+  Sound.syncUI();
+  LFOEngine.syncUI();
   updateSymmetryInfo();
 }
 
@@ -3083,9 +3718,9 @@ function init() {
   // Sync all UI to current state
   syncUIToState();
 
-  History.push(); // save initial state
-
   if (hasHash) {
+    buildLFOPanel();
+    History.push(); // save initial state
     // Shared URL — show immediately with panel open
     Animator.restart();
   } else {
@@ -3108,6 +3743,8 @@ function init() {
       b.classList.toggle('active', b.dataset.mode === state.mode));
 
     updateSymmetryInfo();
+    buildLFOPanel();
+    History.push(); // save initial state
 
     // Immersive start — collapse panel, draw the randomized curve
     document.getElementById('controls-panel').classList.add('collapsed');
