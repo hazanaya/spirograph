@@ -29,6 +29,8 @@ Items are ordered by priority within each section.
 - [x] Brush/stroke variations — solid, dotted, dashed, tapered modes
 - [x] Background color picker — custom background with dynamic rendering
 - [ ] Animation export — export the drawing animation as GIF/MP4/WebM
+- [x] New curve types — Rose, Lissajous, Guilloché as drop-in CurveType modules
+- [x] Loop style selector — Once / Wipe / Rewind / Trail completion behaviors
 
 ---
 
@@ -76,7 +78,7 @@ Items are ordered by priority within each section.
 - [x] Trail mode — curve wraps endlessly with adjustable fade trail
 - [x] Guide opacity slider — fade construction geometry 0–100%
 - [x] Random start — fresh visits randomize all parameters
-- [ ] Responsive phone layout — panels as bottom sheets on small screens
+- [x] Responsive phone layout — panels as bottom sheets on small screens
 
 ---
 
@@ -86,5 +88,6 @@ Items are ordered by priority within each section.
 - [x] Explicit Evolve/IdleAnim guard — prevent glowCanvas opacity conflict
 - [x] Unified animation loop — replaced 4 separate RAF loops with one
 - [x] Camera.dragging — replaced fragile autoRotate flag
-- [ ] Split into ES modules — separate HTML, CSS, JS; native `<script type="module">`
+- [x] Split into ES modules — separate HTML, CSS, JS; native `<script type="module">`
+- [x] Service worker module precache — app shell includes ES module files
 - [ ] Gesture abstraction — extract 1-finger vs 2-finger logic into a handler

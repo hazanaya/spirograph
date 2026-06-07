@@ -4,6 +4,56 @@ All notable changes to this project will be documented in this file.
 
 ---
 
+## [3.1.0] — 2026-06-06
+
+### Changed
+
+- Merged the v3 ES module branch into `main` and stabilized it as the current baseline.
+- Bumped the service worker cache to `spirograph-v4` and precached ES module assets.
+- Compact layouts now present controls, math, and modulation as bottom-sheet surfaces that close each other cleanly.
+
+### Fixed
+
+- Ported undo/redo, settings persistence, and LFO snapshot restore onto the module architecture.
+- Prevented reloads from restoring active sound without a user gesture.
+- Kept Trail mode and stamped layers mutually exclusive so layers stay visible and exportable.
+- Synced color mode, loop style, palettes, stroke, background, and slider edits with history/UI state.
+
+---
+
+## [3.0.0] — 2026-04-21
+
+### Added
+
+**ES module architecture**
+- Split ~2670-line inline `<script>` into five ES modules: `spiro-math.js`, `state.js`, `curve-types.js`, `renderer.js`, `app.js`
+- `CurveType` abstraction: polymorphic `generatePoint`, `totalT`, `maxExtent`, `innerCenter` — new curves are drop-in modules
+- Curve type selector added to Mode panel
+
+**Three new curve types**
+- **Rose (rhodonea)** — `ρ = R·cos(k·t) + d`; k controls petal count (1–20); 3D lift via h
+- **Lissajous** — `x = R·sin(t+δ), y = r·sin(k·t)`; d slider controls phase offset (0–90°); 3D via h
+- **Guilloché** — `ρ = R + r·cos(k·t)`; d controls interlace arm depth; always closes at 2π
+- MathPanel equations and properties panel updated for all five curve types
+- 4 built-in presets for each new curve type (20 total)
+- Preset gallery filters to show only presets matching the active curve type
+
+**Loop style selector**
+- Replaced Trail + Loop toggle buttons with a single dropdown:
+  - **Once** — draw once and stop; idle breathing animation plays
+  - **Wipe** — after completing, erase from start while end stays, then redraw (original loop behavior)
+  - **Rewind** — after completing, erase backward from tip to origin over ~3 s, then redraw
+  - **Trail** — infinite snake wrap; head draws, tail follows with adjustable length (default)
+- Trail Length slider shown only when Trail is selected
+- `loopStyle` setting persisted; old `trailMode`/`loopMode` boolean keys migrated on first load
+
+### Changed
+- `state.mode` (string) replaced by `state.curveType` (CurveType instance) throughout
+- `state.trailMode` + `state.loopMode` collapsed into `state.loopStyle` enum
+- Trail length slider max extended to 100% (was 95%)
+
+---
+
 ## [2.1.0] — 2026-03-29
 
 ### Added

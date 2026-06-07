@@ -1,8 +1,13 @@
-const CACHE_NAME = 'spirograph-v3';
+const CACHE_NAME = 'spirograph-v4';
 const ASSETS = [
   './',
   './index.html',
   './manifest.json',
+  './js/app.js?v=7',
+  './js/state.js',
+  './js/renderer.js',
+  './js/spiro-math.js',
+  './js/curve-types.js',
   './icon-192.png',
   './icon-512.png'
 ];
