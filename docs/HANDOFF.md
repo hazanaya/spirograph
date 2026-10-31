@@ -1,7 +1,35 @@
 # Handoff — Current Project State
-> Last updated: 2026-06-06
+> Last updated: 2026-10-30
 
 ## Current Status
+**Phase:** Done as a toy. Haza, 2026-10-30: this is a "fun little programming attempt" to
+share on the website as a flex, with no expectation of maintenance. Feature work is over;
+what remains is publishing it on the Experiments shelf (see "Publishing" below).
+
+## Publishing (the Experiments shelf)
+
+Precedent: SciPaper Puzzle lives at https://hazanaya.github.io/scipaper-puzzle/ (public
+repo, GitHub Pages, optional `*.hazaelanaya.com` CNAME through Squarespace DNS). Spirograph
+is ready for the same route: every path is relative, the service worker registers as
+`./sw.js`, `start_url` is `./index.html`, so it works from a subfolder unchanged.
+
+Chunks, one per sitting:
+
+1. **Haza:** confirm that publish-only pushes to GitHub Pages are an allowed exception to
+   the current "no GitHub for a while" rule (the only alternative is a drag-and-drop host
+   such as Netlify Drop, which means another account).
+2. **Hub:** add one line to the About panel: "An experiment by Haza. Shared as is, no
+   updates promised." with a link to hazaelanaya.com. Serve the folder locally from a
+   subpath, open it, confirm no console errors and that the service worker installs.
+3. **Hub, after chunk 1:** create the public repo `hazanaya/spirograph` (README-only
+   description plus the app files), enable Pages from `main` root, push once, verify the
+   live URL on phone and desktop, record the URL here and in the README.
+4. **Haza:** on Squarespace add an "Experiments" page or section with a card for
+   Spirograph (and SciPaper Puzzle). Optional: CNAME `spiro.hazaelanaya.com`.
+
+After chunk 4 this project is finished and stays in place as a published experiment.
+
+## Previous status (2026-06-06)
 **Phase:** v3 modules merged into `main` with stabilization pass complete.
 
 The local feature branch `haza/thirsty-villani-31aa75` has been merged into `main`. There are no additional git worktrees registered for this repo; the prior "worktree" cleanup was a local branch merge.

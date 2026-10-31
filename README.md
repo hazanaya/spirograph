@@ -1,6 +1,6 @@
 # Spirograph
 
-> Status: **Active** | Created: 2025-03-31
+> Status: **Experiment, to be shared on hazaelanaya.com; no maintenance promised** | Created: 2025-03-31
 
 ## Overview
 Interactive spirograph generator built as a Progressive Web App. Features ghost-free trail mode.
