@@ -2,6 +2,13 @@
 
 _See also: root-level `CHANGELOG.md` for changes predating this tracking system._
 
+## [2026-10-31] — Published as open source
+- Released under MIT at https://github.com/hazanaya/spirograph, live at
+  https://hazanaya.github.io/spirograph/ (GitHub Pages from `main` root).
+- `docs/HANDOFF.md`: phase set to Published; publishing chunks 1–3 recorded as done,
+  chunk 4 (Squarespace card) left to Haza; offline check noted.
+- Root `CHANGELOG.md`: 3.1.1 entry (license, About credit, zero-size canvas guard, cache bump).
+
 ## [2026-06-06] — Doc Refresh: Plan ↔ Reality Sync
 - Updated `docs/IMPROVEMENT-PLAN.md`: added a Progress Update mapping each plan
   item to done/open. Recorded that v3.0 shipped the foundation sprint (4.1 ES

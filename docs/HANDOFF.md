@@ -1,10 +1,12 @@
 # Handoff — Current Project State
-> Last updated: 2026-10-30
+> Last updated: 2026-10-31
 
 ## Current Status
-**Phase:** Done as a toy. Haza, 2026-10-30: this is a "fun little programming attempt" to
-share on the website as a flex, with no expectation of maintenance. Feature work is over;
-what remains is publishing it on the Experiments shelf (see "Publishing" below).
+**Phase:** Published, 2026-10-31. Live at https://hazanaya.github.io/spirograph/ from the
+public repo https://github.com/hazanaya/spirograph (MIT, issues and wiki off). Haza, 2026-10-30:
+a "fun little programming attempt" to share on the website as a flex, with no expectation of
+maintenance; on 2026-10-31 Haza made it the first open-source release ("set it and forget it").
+Feature work is over. The only open item is Haza's Squarespace card (chunk 4 below).
 
 ## Publishing (the Experiments shelf)
 
@@ -15,19 +17,26 @@ is ready for the same route: every path is relative, the service worker register
 
 Chunks, one per sitting:
 
-1. **Haza:** confirm that publish-only pushes to GitHub Pages are an allowed exception to
-   the current "no GitHub for a while" rule (the only alternative is a drag-and-drop host
-   such as Netlify Drop, which means another account).
-2. **Hub:** add one line to the About panel: "An experiment by Haza. Shared as is, no
-   updates promised." with a link to hazaelanaya.com. Serve the folder locally from a
-   subpath, open it, confirm no console errors and that the service worker installs.
-3. **Hub, after chunk 1:** create the public repo `hazanaya/spirograph` (README-only
-   description plus the app files), enable Pages from `main` root, push once, verify the
-   live URL on phone and desktop, record the URL here and in the README.
-4. **Haza:** on Squarespace add an "Experiments" page or section with a card for
+1. **Haza, done 2026-10-31:** publish-only GitHub pushes are allowed for Experiments-shelf
+   items; Spirograph is also the first project released as open source (MIT).
+2. **Hub, done 2026-10-31:** About panel gained the credit line with links to hazaelanaya.com
+   and the source. Subpath smoke test from `http://127.0.0.1:8788/spirograph/` in the hub's
+   browser pane: renders, About line present, no console errors. First load in a zero-size
+   window threw `InvalidStateError` from `drawImage(Renderer.glowCanvas, …)`; both call sites
+   are now guarded. Service-worker install could not be checked over plain-HTTP loopback in
+   that pane; it was verified on the live site instead (chunk 3).
+3. **Hub, done 2026-10-31:** repo `hazanaya/spirograph` created public with the full history,
+   Pages enabled from `main` root, one push (commit b34b3dc). Live URL recorded here and in
+   the README. Live check in the hub's browser pane: renders, About line present, no console
+   errors, service worker activated with cache `spirograph-v5`; `/`, `sw.js`, `manifest.json`,
+   `js/app.js?v=8` and `LICENSE` all answer 200. Two commit authors appear in the history (`hazael.anaya@gmail.com` and the
+   machine-default `haza@mac.attlocal.net`); cosmetic, left as is.
+4. **Haza, open:** on Squarespace add an "Experiments" page or section with a card for
    Spirograph (and SciPaper Puzzle). Optional: CNAME `spiro.hazaelanaya.com`.
 
 After chunk 4 this project is finished and stays in place as a published experiment.
+Offline check worth doing once on a phone: load the live URL, turn on airplane mode, reload;
+it should still open (service worker cache `spirograph-v5`).
 
 ## Previous status (2026-06-06)
 **Phase:** v3 modules merged into `main` with stabilization pass complete.
@@ -97,6 +106,8 @@ Browser smoke completed at `http://127.0.0.1:8787/`:
   rose/lissajous/guilloche curve types already shipped in v3.0.
 
 ## Next Session Suggestions
-- Start with `git status --short --branch`; it should be clean after this handoff commit.
-- Use `python3 -m http.server 8787 --bind 127.0.0.1` or the `.claude/launch.json` port `8765`.
-- Prefer extending the module structure instead of reintroducing inline app script.
+No next session is planned; this is a published experiment with no maintenance promised.
+If one happens anyway: start with `git status --short --branch` (clean, `main` tracks
+`origin/main`); serve with `python3 -m http.server 8765` or `.claude/launch.json`; bump the
+service worker cache name and the `app.js?v=` cache-buster for any change that ships; push to
+`main` and Pages redeploys on its own.
