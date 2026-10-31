@@ -764,7 +764,7 @@ const Animator = {
       cCtx2.filter = 'blur(8px)';
       cCtx2.globalCompositeOperation = 'lighter';
       cCtx2.globalAlpha = 0.3;
-      cCtx2.drawImage(Renderer.glowCanvas, 0, 0, Renderer.width, Renderer.height);
+      if (Renderer.glowCanvas.width > 0 && Renderer.glowCanvas.height > 0) cCtx2.drawImage(Renderer.glowCanvas, 0, 0, Renderer.width, Renderer.height);
       cCtx2.filter = 'none';
       cCtx2.globalCompositeOperation = 'source-over';
       cCtx2.globalAlpha = 1;
@@ -1886,7 +1886,7 @@ function exportPNG(scale) {
     ctx.fillStyle = state.bgColor;
     ctx.fillRect(0, 0, c.width, c.height);
     ctx.drawImage(Renderer.layersCanvas, 0, 0);
-    ctx.drawImage(Renderer.glowCanvas, 0, 0);
+    if (Renderer.glowCanvas.width > 0 && Renderer.glowCanvas.height > 0) ctx.drawImage(Renderer.glowCanvas, 0, 0);
     ctx.drawImage(Renderer.curveCanvas, 0, 0);
     const link = document.createElement('a');
     link.download = `spirograph-${Date.now()}.png`;

@@ -4,6 +4,24 @@ All notable changes to this project will be documented in this file.
 
 ---
 
+## [3.1.1] — 2026-10-31
+
+Published as an open-source experiment at https://hazanaya.github.io/spirograph/.
+
+### Added
+
+- `LICENSE` (MIT) and a License section in the README.
+- About panel: credit line "An experiment by Haza. Shared as is, no updates promised." with links to hazaelanaya.com and the source.
+
+### Fixed
+
+- Guarded both `drawImage(Renderer.glowCanvas, …)` calls against a zero-size canvas, which threw `InvalidStateError` on the first frame when the page loaded in a zero-size window.
+
+### Changed
+
+- Service worker cache bumped to `spirograph-v5`; `app.js` cache-buster to `?v=8`.
+- `.claude/launch.json` serves `.` instead of an absolute path.
+
 ## [3.1.0] — 2026-06-06
 
 ### Changed
